@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "framework": "react",
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "routes": [
+    { "src": "/api/.*", "dest": "/api/$1" },
+    { "src": "/callback", "dest": "/api/callback.js" },
+    { "src": "/health", "dest": "/api/health.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "env": {
+    "REACT_APP_SPOTIFY_CLIENT_ID": "@spotify_client_id",
+    "REACT_APP_SPOTIFY_CLIENT_SECRET": "@spotify_client_secret",
+    "REACT_APP_REDIRECT_URI": "@spotify_redirect_uri",
+    "REACT_APP_API_URL": "@api_url"
+  }
+}

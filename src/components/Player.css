@@ -1,0 +1,247 @@
+.player {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 12px;
+  padding: 25px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.player::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(29, 185, 84, 0.15) 0%, transparent 100%);
+  z-index: -1;
+}
+
+.player--empty {
+  flex-direction: column;
+  justify-content: center;
+  height: 200px;
+  text-align: center;
+}
+
+.player__empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.player__empty-message {
+  color: #fff;
+}
+
+.player__icon {
+  opacity: 0.7;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+.player__album-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 150px;
+  height: 150px;
+  perspective: 800px;
+}
+
+.player__album-disc {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  position: relative;
+  transition: transform 0.2s ease;
+  transform-style: preserve-3d;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.player__albumCover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.player__album-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background-color: #333;
+  border-radius: 50%;
+  border: 3px solid #1DB954;
+  box-shadow: 0 0 10px rgba(29, 185, 84, 0.6);
+  z-index: 2;
+}
+
+.player__mode {
+  position: absolute;
+  top: -8px;
+  left: -5px;
+  background-color: #1DB954;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  transform: rotate(-15deg);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  animation: pulse-mode 2s infinite alternate;
+  z-index: 10;
+}
+
+@keyframes pulse-mode {
+  from {
+    transform: rotate(-15deg) scale(1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  }
+  to {
+    transform: rotate(-15deg) scale(1.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), 0 0 15px rgba(29, 185, 84, 0.5);
+  }
+}
+
+.player__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.player__track-info {
+  flex: 1;
+}
+
+.player__title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.player__artist {
+  font-size: 18px;
+  color: #1DB954;
+  margin: 0 0 5px 0;
+  font-weight: 600;
+}
+
+.player__album-name {
+  font-size: 14px;
+  color: #b3b3b3;
+  margin: 0;
+}
+
+.player__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.player__progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.player__progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.player__progress-fill {
+  height: 100%;
+  background-color: #1DB954;
+  border-radius: 2px;
+  transition: width 0.5s linear;
+  position: relative;
+}
+
+.player__progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  background-color: white;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+}
+
+.player__time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #b3b3b3;
+}
+
+.player__instructions {
+  font-size: 14px;
+  color: white;
+  margin: 5px 0 0;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player__instructions-icon {
+  font-size: 16px;
+  animation: bounce 1s infinite alternate;
+}
+
+@keyframes bounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+
+.player__hint {
+  font-size: 14px;
+  color: #b3b3b3;
+  margin-top: 5px;
+}

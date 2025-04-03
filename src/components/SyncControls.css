@@ -1,0 +1,60 @@
+.sync-controls {
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 15px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-controls__info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+}
+
+.sync-controls__label {
+  color: #b3b3b3;
+}
+
+.sync-controls__value {
+  color: #1DB954;
+  font-weight: bold;
+  min-width: 35px;
+  text-align: center;
+}
+
+.sync-controls__buttons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sync-controls__button {
+  background-color: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sync-controls__button:hover {
+  background-color: #444;
+}
+
+.sync-controls__button--reset {
+  background-color: #1DB954;
+  color: black;
+  font-weight: bold;
+}
+
+.sync-controls__button--reset:hover {
+  background-color: #1ed760;
+}

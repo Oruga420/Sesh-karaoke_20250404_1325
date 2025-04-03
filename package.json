@@ -1,0 +1,44 @@
+{
+  "name": "spotify-karaoke",
+  "version": "1.0.0",
+  "description": "A karaoke application that syncs with Spotify",
+  "main": "index.js",
+  "scripts": {
+    "start": "react-scripts start",
+    "start-redirect": "node server/redirect-server.js",
+    "start-api": "node server/server.js",
+    "start-all": "concurrently \"npm run start\" \"npm run start-redirect\" \"npm run start-api\"",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "@types/spotify-web-api-js": "^0.0.27",
+    "axios": "^1.6.0",
+    "gsap": "^3.12.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.30.0",
+    "react-scripts": "5.0.1",
+    "spotify-web-api-js": "^1.5.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/react-router-dom": "^5.3.3",
+    "concurrently": "^8.2.2",
+    "typescript": "^4.9.5"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

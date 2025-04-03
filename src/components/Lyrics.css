@@ -1,0 +1,419 @@
+.lyrics {
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 12px;
+  padding: 0;
+  width: 100%;
+  height: 400px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  perspective: 1000px; /* For 3D effects */
+}
+
+.lyrics--dynamic {
+  background: linear-gradient(135deg, 
+    rgba(0, 0, 0, 0.95) 0%, 
+    rgba(29, 185, 84, 0.05) 100%
+  );
+  animation: gradientShift 10s ease infinite alternate;
+}
+
+.lyrics--empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #b3b3b3;
+}
+
+.lyrics__empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 30px;
+  text-align: center;
+}
+
+.lyrics__empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+  animation: float 3s ease-in-out infinite alternate;
+}
+
+.lyrics__empty-message {
+  font-size: 14px;
+  color: #999;
+  margin-top: 10px;
+  line-height: 1.6;
+}
+
+.lyrics__debug-info {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.2);
+  max-width: 80%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lyrics__retry-button {
+  margin-top: 10px;
+  padding: 5px 15px;
+  background-color: #1DB954;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.3s ease;
+}
+
+.lyrics__retry-button:hover {
+  background-color: #1ed760;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-10px) rotate(5deg);
+  }
+}
+
+.lyrics__container {
+  width: 100%;
+  height: calc(100% - 50px); /* Leave space for progress bar */
+  overflow-y: auto;
+  padding: 60px 20px 80px;
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  position: relative;
+  z-index: 1;
+  color: white;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+/* Hide scrollbar for Chrome, Safari, and Opera */
+.lyrics__container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sync view elements */
+.lyrics__highlighted-wrapper {
+  margin: 30px 0;
+  position: relative;
+  transform-style: preserve-3d;
+  transform: translateZ(5px);
+}
+
+.lyrics__highlighted {
+  display: block;
+  font-size: 5em;
+  font-weight: 700;
+  color: #1DB954;
+  padding: 0.1em 0;
+  text-shadow: 0 0 10px rgba(29, 185, 84, 0.7);
+  animation: pulse-highlight 1.5s infinite alternate;
+  position: relative;
+  line-height: 1.2;
+}
+
+.lyrics__passed-section {
+  color: #1DB954;
+  opacity: 0.75;
+  font-size: 1em;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.lyrics__upcoming-section {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1em;
+  text-align: center;
+  margin-top: 20px;
+}
+
+@keyframes pulse-highlight {
+  0% {
+    text-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+    transform: scale(1);
+  }
+  100% {
+    text-shadow: 0 0 20px rgba(29, 185, 84, 0.9), 0 0 30px rgba(29, 185, 84, 0.6);
+    transform: scale(1.03);
+  }
+}
+
+.lyrics__sync-toggle {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 36px;
+  height: 36px;
+  background-color: rgba(29, 185, 84, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 30;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(29, 185, 84, 0.5);
+}
+
+.lyrics__sync-toggle:hover {
+  background-color: rgba(29, 185, 84, 0.4);
+  transform: scale(1.1);
+}
+
+.lyrics__sync-icon {
+  font-size: 18px;
+}
+
+/* Line by line view elements */
+.lyrics__line {
+  text-align: center;
+  padding: 10px 15px;
+  margin: 15px 0;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  border-radius: 10px;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+}
+
+.lyrics__line--active {
+  font-size: 24px; /* 10% bigger from 22px */
+  font-weight: 600;
+  color: #1DB954;
+  text-shadow: 0 0 10px rgba(29, 185, 84, 0.7);
+  animation: pulse-line 1.5s infinite alternate;
+  background: linear-gradient(90deg, 
+    rgba(29, 185, 84, 0) 0%, 
+    rgba(29, 185, 84, 0.2) 50%,
+    rgba(29, 185, 84, 0) 100%
+  );
+  transform: scale(1.08) translateZ(10px);
+  letter-spacing: 0.5px;
+  padding: 8px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(29, 185, 84, 0.2);
+}
+
+@keyframes pulse-line {
+  0% {
+    text-shadow: 0 0 5px rgba(29, 185, 84, 0.5);
+    transform: scale(1.05) translateZ(5px);
+  }
+  100% {
+    text-shadow: 0 0 10px rgba(29, 185, 84, 0.7);
+    transform: scale(1.08) translateZ(8px);
+  }
+}
+
+.lyrics__line--passed {
+  color: #1DB954;
+  text-shadow: 0 0 10px rgba(29, 185, 84, 0.3);
+}
+
+.lyrics__word {
+  display: inline-block;
+  position: relative;
+  padding: 0 2px;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+}
+
+.lyrics__word--current {
+  color: inherit;
+  font-weight: inherit;
+  text-shadow: inherit;
+  position: relative;
+  z-index: 5;
+}
+
+/* No underline or scaling for individual words */
+
+.lyrics__word--passed {
+  color: white;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.lyrics__word--line-passed {
+  color: #1DB954;
+  opacity: 0.75;
+  transition: opacity 0.5s ease;
+}
+
+/* Word animation keyframes */
+@keyframes highlight-word {
+  0% {
+    transform: scale(1.1) translateZ(0);
+    color: white;
+  }
+  100% {
+    transform: scale(1.4) translateZ(20px);
+    color: #1DB954;
+  }
+}
+
+@keyframes glow-bar {
+  0% {
+    box-shadow: 0 0 5px #1DB954, 0 0 10px rgba(29, 185, 84, 0.2);
+    height: 2px;
+  }
+  100% {
+    box-shadow: 0 0 15px #1DB954, 0 0 30px rgba(29, 185, 84, 0.5);
+    height: 3px;
+  }
+}
+
+.lyrics__word-space {
+  display: inline-block;
+  width: 0.4em; /* Increased from 0.3em for better word separation */
+  min-width: 6px; /* Ensure minimum spacing */
+}
+
+/* Fade effects at top and bottom for scroll illusion */
+.lyrics__fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.lyrics__fade--top {
+  top: 0;
+  background: linear-gradient(to bottom, 
+    rgba(0, 0, 0, 0.9) 0%, 
+    transparent 100%
+  );
+}
+
+.lyrics__fade--bottom {
+  bottom: 50px; /* Account for progress bar */
+  background: linear-gradient(to top, 
+    rgba(0, 0, 0, 0.9) 0%, 
+    transparent 100%
+  );
+}
+
+/* Progress bar */
+.lyrics__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 20px;
+  z-index: 20;
+}
+
+.lyrics__progress-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+.lyrics__progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.lyrics__progress-fill {
+  height: 100%;
+  background-color: #1DB954;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+@keyframes pulse-word {
+  0% {
+    text-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+  }
+  100% {
+    text-shadow: 0 0 20px rgba(29, 185, 84, 0.9), 0 0 30px rgba(29, 185, 84, 0.3);
+  }
+}
+
+/* Background animation */
+@keyframes gradientShift {
+  0% {
+    background: linear-gradient(135deg, 
+      rgba(0, 0, 0, 0.95) 0%, 
+      rgba(29, 185, 84, 0.05) 100%
+    );
+  }
+  50% {
+    background: linear-gradient(135deg, 
+      rgba(0, 0, 0, 0.95) 0%, 
+      rgba(29, 185, 84, 0.1) 60%,
+      rgba(0, 0, 0, 0.9) 100%
+    );
+  }
+  100% {
+    background: linear-gradient(135deg, 
+      rgba(0, 0, 0, 0.9) 0%, 
+      rgba(29, 185, 84, 0.05) 40%,
+      rgba(0, 0, 0, 0.95) 100%
+    );
+  }
+}
+
+/* Add a subtle dynamic background element */
+.lyrics--dynamic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: 
+    radial-gradient(
+      circle at var(--x, 50%) var(--y, 50%), 
+      rgba(29, 185, 84, 0.2) 0%, 
+      transparent 60%
+    );
+  opacity: 0.4;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.lyrics--dynamic:hover::before {
+  opacity: 0.6;
+  --x: var(--mouse-x, 50%);
+  --y: var(--mouse-y, 50%);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .lyrics__highlighted {
+    font-size: 3em;
+  }
+  
+  .lyrics__line--active {
+    font-size: 22px; /* 10% bigger from 20px */
+    padding: 6px;
+  }
+}
