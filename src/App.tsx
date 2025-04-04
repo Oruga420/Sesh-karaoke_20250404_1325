@@ -265,7 +265,7 @@ function App() {
       
       // DIRECT APPROACH WITHOUT COMPLEX LOGIC
       // Call the API with minimal error handling
-      const apiUrl = 'http://localhost:3001';
+      const apiUrl = process.env.REACT_APP_API_URL || window.location.origin;
       console.log(`Direct API call to: ${apiUrl}/api/lyrics`);
       
       const response = await axios.get(`${apiUrl}/api/lyrics`, {
