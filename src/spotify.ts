@@ -4,19 +4,28 @@
 const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID || '3be3c1962cc44e2d820c6171d9debbf2';
 const clientSecret = process.env.REACT_APP_SPOTIFY_CLIENT_SECRET || 'dae664828eee4fe4bf73c1d52eebe63d';
 
-// For production, use the current hostname for the redirectUri
+// Determine the redirect URI based on environment
 let redirectUri = process.env.REACT_APP_REDIRECT_URI;
 if (!redirectUri) {
   // In browser environment, determine the URI based on current host
   if (typeof window !== 'undefined') {
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    redirectUri = `${protocol}//${host}/callback`;
+    // For Vercel deployments, we need to use the API routes format
+    if (window.location.hostname.includes('vercel.app')) {
+      redirectUri = `${window.location.origin}/api/callback`;
+    } else {
+      // For local development or custom domains
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      redirectUri = `${protocol}//${host}/callback`;
+    }
   } else {
     // Fallback for server-side rendering
     redirectUri = 'http://localhost:8888/callback';
   }
 }
+
+// Log the redirect URI for debugging
+console.log('Spotify redirect URI:', redirectUri);
 
 // Scopes define the access permissions we're asking from the user
 const scopes = [

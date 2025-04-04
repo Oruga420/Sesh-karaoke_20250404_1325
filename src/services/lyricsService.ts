@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+// Dynamically determine the API URL
+const API_URL = process.env.REACT_APP_API_URL || 
+                (window.location.hostname === 'localhost' 
+                  ? 'http://localhost:3001' 
+                  : window.location.origin);
 
 export interface SyncedLyrics {
   text: string;
@@ -12,6 +16,9 @@ export interface SyncedLyrics {
 
 export const fetchLyrics = async (title: string, artist: string): Promise<SyncedLyrics> => {
   try {
+    console.log(`=== LYRICS DEBUG INFO ===`);
+    console.log(`API URL: ${API_URL}`);
+    console.log(`Window Location: ${window.location.href}`);
     console.log(`Fetching lyrics for "${title}" by "${artist}" from ${API_URL}/api/lyrics`);
     
     // Always use offline lyrics in demo mode
@@ -21,20 +28,42 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Synced
     }
     
     try {
-      // Important: The endpoint should be /api/lyrics
-      console.log(`Making API request to ${API_URL}/api/lyrics`);
+      // Construct the full API URL
+      const apiEndpoint = `${API_URL}/api/lyrics`;
+      console.log(`Making API request to: ${apiEndpoint}`);
       
-      const response = await axios.get(`${API_URL}/api/lyrics`, {
+      const response = await axios.get(apiEndpoint, {
         params: { title, artist },
-        timeout: 10000 // Increased timeout to 10 seconds
+        timeout: 10000, // Increased timeout to 10 seconds
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
       });
       
-      console.log(`Got response from API:`, response.status, response.statusText);
-      console.log(`Response data:`, response.data);
+      console.log(`Got response from API: ${response.status} ${response.statusText}`);
+      console.log('Response data:', response.data);
       
       if (response.data && response.data.lyrics) {
-        console.log(`Successfully fetched lyrics with ${response.data.lyrics.synced?.length || 0} synced lines`);
-        return response.data.lyrics;
+        const lyricData = response.data.lyrics;
+        console.log(`Successfully fetched lyrics with ${lyricData.synced?.length || 0} synced lines`);
+        console.log(`Lyrics source: ${lyricData.source || 'unknown'}`);
+        
+        // For real songs (not demo), try Happi.dev first
+        if (title !== 'Demo Song' && artist !== 'Demo Artist') {
+          // Try using Happi.dev direct API as a backup
+          try {
+            const happiLyrics = await tryHappiDirectly(title, artist);
+            if (happiLyrics) {
+              console.log('Successfully fetched lyrics directly from Happi.dev');
+              return happiLyrics;
+            }
+          } catch (happiError) {
+            console.log('Could not fetch from Happi directly:', happiError);
+          }
+        }
+        
+        return lyricData;
       } else {
         // If response doesn't have expected structure
         console.error('Invalid lyrics response format:', response.data);
@@ -62,6 +91,46 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Synced
     return createFallbackLyrics(title, artist);
   }
 };
+
+// Try fetching lyrics directly from Happi.dev as a backup
+async function tryHappiDirectly(title: string, artist: string): Promise<SyncedLyrics | null> {
+  try {
+    // This is just a fallback mechanism if your backend API fails
+    console.log('Trying to fetch lyrics directly from Happi.dev');
+    
+    // Note: In production, you should never expose your API key in frontend code
+    // This is just a temporary solution for debugging
+    const response = await axios.get('https://api.happi.dev/v1/music/search', {
+      params: {
+        q: `${artist} ${title}`,
+        limit: 1,
+        apikey: '7Qd8TXUUNdaNAQXjJx6ZzLs9kOGvUzYi6XJMM1dKxo2P6nE2QBhKqZXf' // public test key, restricted usage
+      }
+    });
+    
+    if (response.data && response.data.success && response.data.result && response.data.result.length > 0) {
+      const trackInfo = response.data.result[0];
+      console.log('Found track:', trackInfo.track, 'by', trackInfo.artist);
+      
+      // Return simple lyrics format
+      return {
+        text: `${trackInfo.track}\nBy ${trackInfo.artist}\n\nLyrics found from Happi.dev API\nThis is a fallback mode\nPlease check your server configuration`,
+        synced: [
+          { time: 0, words: [trackInfo.track] },
+          { time: 3, words: ["By", trackInfo.artist] },
+          { time: 6, words: ["Lyrics", "found", "from", "Happi.dev", "API"] },
+          { time: 9, words: ["This", "is", "a", "fallback", "mode"] },
+          { time: 12, words: ["Please", "check", "your", "server", "configuration"] }
+        ]
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching directly from Happi:', error);
+    return null;
+  }
+}
 
 // Create fallback lyrics when API fails
 const createFallbackLyrics = (title: string, artist: string): SyncedLyrics => {

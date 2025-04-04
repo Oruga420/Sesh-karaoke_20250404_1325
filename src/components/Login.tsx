@@ -7,7 +7,16 @@ function Login() {
 
   // Simple function to handle login securely
   const handleLoginClick = () => {
-    console.log("Login button clicked, redirecting to:", loginUrl);
+    console.log("Login button clicked, redirecting to Spotify authorization");
+    console.log("Login URL:", loginUrl);
+    
+    // Display Spotify client ID for debugging
+    const clientId = loginUrl.match(/client_id=([^&]*)/)?.[1] || 'unknown';
+    console.log("Using Spotify Client ID:", clientId);
+    
+    // Display redirect URI
+    const redirectUri = loginUrl.match(/redirect_uri=([^&]*)/)?.[1] || 'unknown';
+    console.log("Using redirect URI:", decodeURIComponent(redirectUri));
     
     // Set logging in state
     setIsLoggingIn(true);

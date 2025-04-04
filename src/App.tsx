@@ -258,43 +258,78 @@ function App() {
     };
   }, [token, currentTrack]);
   
-  // Fetch lyrics with improved debug logging
+  // Fetch lyrics from API
   const fetchLyrics = async (title: string, artist: string) => {
     try {
       console.log(`Fetching lyrics for ${title} by ${artist}`);
       
-      // Create hardcoded lyrics directly in the function
-      // This guarantees we always have lyrics regardless of API status
-      const directLyrics = {
-        text: `${title}\nBy ${artist}\n\nLyrics are syncing with the beat\nEnjoy the music and follow along\nEach word appears as the song plays\nMusic brings us all together`,
-        synced: [
-          { time: 0, words: [title] },
-          { time: 3, words: ["By", artist] },
-          { time: 7, words: ["Lyrics", "are", "syncing", "with", "the", "beat"] },
-          { time: 11, words: ["Enjoy", "the", "music", "and", "follow", "along"] },
-          { time: 15, words: ["Each", "word", "appears", "as", "the", "song", "plays"] },
-          { time: 19, words: ["Music", "brings", "us", "all", "together"] }
-        ],
-        source: 'direct'
-      };
+      // For demo mode, always use the demo lyrics
+      if (title === 'Demo Song' && artist === 'Demo Artist') {
+        console.log('Demo mode detected - using built-in demo lyrics');
+        const demoLyrics = {
+          text: `Demo Song\nBy Demo Artist\n\nThis is a special demo song\nWith synchronized lyrics\nNo API key required\nEnjoy the karaoke experience\n\nThe words will highlight\nAs the song plays along\nPerfect for testing\nWithout needing Spotify`,
+          synced: [
+            { time: 25, words: ["Demo", "Song"] },
+            { time: 29, words: ["By", "Demo", "Artist"] },
+            { time: 33, words: ["This", "is", "a", "special", "demo", "song"] },
+            { time: 37, words: ["With", "synchronized", "lyrics"] },
+            { time: 41, words: ["No", "API", "key", "required"] },
+            { time: 45, words: ["Enjoy", "the", "karaoke", "experience"] },
+            { time: 49, words: ["The", "words", "will", "highlight"] },
+            { time: 53, words: ["As", "the", "song", "plays", "along"] },
+            { time: 57, words: ["Perfect", "for", "testing"] },
+            { time: 61, words: ["Without", "needing", "Spotify"] }
+          ]
+        };
+        
+        setLyrics(demoLyrics.text);
+        const formattedDemoLyrics = demoLyrics.synced.map(line => {
+          return line.words.map(word => ({
+            word: word,
+            timestamp: line.time
+          }));
+        });
+        setSyncedLyrics(formattedDemoLyrics);
+        setCurrentLine(0);
+        setCurrentWord(0);
+        return;
+      }
       
-      console.log('Using direct lyrics method');
-            
-      // Set the lyrics text
-      setLyrics(directLyrics.text);
+      // For real songs, try to get lyrics from the API
+      console.log('Attempting to fetch lyrics from API...');
       
-      // Format the lyrics
-      const formattedLyrics = directLyrics.synced.map(line => {
-        return line.words.map(word => ({
-          word: word,
-          timestamp: line.time
-        }));
-      });
+      // Determine API URL - use window location origin if nothing specified
+      const apiBaseUrl = process.env.REACT_APP_API_URL || window.location.origin;
+      const apiUrl = `${apiBaseUrl}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
       
-      console.log(`Processed ${formattedLyrics.length} lines of synced lyrics`);
-      setSyncedLyrics(formattedLyrics);
-      setCurrentLine(0);
-      setCurrentWord(0);
+      console.log(`Making API request to: ${apiUrl}`);
+      const response = await axios.get(apiUrl, { timeout: 10000 });
+      
+      console.log('API response:', response.data);
+      
+      if (response.data && response.data.lyrics) {
+        const lyricsData = response.data.lyrics;
+        console.log(`Got lyrics from API with ${lyricsData.synced?.length || 0} synced lines`);
+        
+        // Set the lyrics text
+        setLyrics(lyricsData.text);
+        
+        // Format the synced lyrics for display
+        const formattedLyrics = lyricsData.synced.map((line: any) => {
+          return line.words.map((word: string) => ({
+            word: word,
+            timestamp: line.time
+          }));
+        });
+        
+        console.log(`Processed ${formattedLyrics.length} lines of synced lyrics`);
+        setSyncedLyrics(formattedLyrics);
+        setCurrentLine(0);
+        setCurrentWord(0);
+        return;
+      } else {
+        throw new Error('Invalid API response format');
+      }
       
     } catch (error) {
       console.error('Error in lyrics handling:', error);
