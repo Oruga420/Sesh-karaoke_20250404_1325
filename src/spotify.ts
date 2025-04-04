@@ -62,12 +62,6 @@ export const getTokenFromUrl = (): any => {
   }
 };
 
-// Check if we're in offline/demo mode
-export const isDemoMode = (): boolean => {
-  const token = localStorage.getItem('spotify_token');
-  return token === 'demo-mode-token';
-};
-
 // Check if we're connected to the internet
 export const checkOnlineStatus = (): boolean => {
   return navigator.onLine;

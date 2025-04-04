@@ -83,36 +83,20 @@ function App() {
       // Check for token in localStorage (for returning users)
       const savedToken = localStorage.getItem('spotify_token');
       if (savedToken) {
-        // Check if this is the demo token
-        if (savedToken === 'demo-mode-token') {
-          console.log("Demo mode activated!");
-          setToken(savedToken);
-          // No need to set Spotify API token for demo mode
-        } else {
-          console.log("Found saved token:", savedToken.substring(0,10) + "...");
-          setToken(savedToken);
-          spotify.setAccessToken(savedToken);
-          
-          // Only verify online tokens
-          if (navigator.onLine) {
-            // Verify token is still valid
-            spotify.getMe()
-              .then(user => {
-                console.log('User:', user);
-              })
-              .catch(error => {
-                console.error('Token invalid:', error);
-                
-                // Don't remove token if we're offline, as we can't verify it
-                if (navigator.onLine) {
-                  localStorage.removeItem('spotify_token');
-                  setToken(null);
-                }
-              });
-          } else {
-            console.log('Offline mode - skipping token verification');
-          }
-        }
+        console.log("Found saved token:", savedToken.substring(0,10) + "...");
+        setToken(savedToken);
+        spotify.setAccessToken(savedToken);
+        
+        // Verify token is still valid
+        spotify.getMe()
+          .then(user => {
+            console.log('User:', user);
+          })
+          .catch(error => {
+            console.error('Token invalid:', error);
+            localStorage.removeItem('spotify_token');
+            setToken(null);
+          });
       }
     }
     
@@ -186,60 +170,15 @@ function App() {
       }).catch(error => {
         console.error('Error getting current track:', error);
         
-        // Detect if this is an internet disconnection error
-        const isOfflineError = 
-          error.message?.includes('ERR_INTERNET_DISCONNECTED') || 
-          error.message?.includes('NetworkError') ||
-          error.code === 'ENOTFOUND';
+        // Clear current track on error to show default UI
+        setCurrentTrack(null);
+        setIsPlaying(false);
         
-        if (isOfflineError) {
-          console.log('Internet appears to be disconnected - activating offline mode');
-        }
-        
-        // Use demo track when offline or for testing
-        const demoTrack: SpotifyTrack = {
-          id: 'demo-track-123',
-          name: 'Demo Song',
-          uri: 'spotify:track:demo123',
-          duration_ms: 180000,
-          artists: [{
-            id: 'demo-artist-123',
-            name: 'Demo Artist',
-            uri: 'spotify:artist:demo123'
-          }],
-          album: {
-            id: 'demo-album-123',
-            name: 'Demo Album',
-            images: [{
-              url: 'https://via.placeholder.com/300'
-            }]
-          }
-        };
-        
-        // Handle offline mode by initializing the player with a demo track
-        console.log('Using demo track for offline testing');
-        setCurrentTrack(demoTrack);
-        setIsPlaying(true);
-        setTrackProgress(30000); // Start 30 seconds in
-        
-        // Generate demo lyrics for the demo track
-        fetchLyrics('Demo Song', 'Demo Artist');
-        
-        // Simulate track progress for the demo
+        // Clear progress interval if it exists
         if (progressInterval) {
           clearInterval(progressInterval);
+          progressInterval = null;
         }
-        
-        lastUpdateTime = Date.now();
-        progressInterval = setInterval(() => {
-          setTrackProgress(prevProgress => {
-            // Loop back to beginning when reaching end
-            if (prevProgress >= 180000) {
-              return 0;
-            }
-            return prevProgress + 100;
-          });
-        }, 100);
       });
     };
     
@@ -262,38 +201,6 @@ function App() {
   const fetchLyrics = async (title: string, artist: string) => {
     try {
       console.log(`Fetching lyrics for ${title} by ${artist}`);
-      
-      // For demo mode, always use the demo lyrics
-      if (title === 'Demo Song' && artist === 'Demo Artist') {
-        console.log('Demo mode detected - using built-in demo lyrics');
-        const demoLyrics = {
-          text: `Demo Song\nBy Demo Artist\n\nThis is a special demo song\nWith synchronized lyrics\nNo API key required\nEnjoy the karaoke experience\n\nThe words will highlight\nAs the song plays along\nPerfect for testing\nWithout needing Spotify`,
-          synced: [
-            { time: 25, words: ["Demo", "Song"] },
-            { time: 29, words: ["By", "Demo", "Artist"] },
-            { time: 33, words: ["This", "is", "a", "special", "demo", "song"] },
-            { time: 37, words: ["With", "synchronized", "lyrics"] },
-            { time: 41, words: ["No", "API", "key", "required"] },
-            { time: 45, words: ["Enjoy", "the", "karaoke", "experience"] },
-            { time: 49, words: ["The", "words", "will", "highlight"] },
-            { time: 53, words: ["As", "the", "song", "plays", "along"] },
-            { time: 57, words: ["Perfect", "for", "testing"] },
-            { time: 61, words: ["Without", "needing", "Spotify"] }
-          ]
-        };
-        
-        setLyrics(demoLyrics.text);
-        const formattedDemoLyrics = demoLyrics.synced.map(line => {
-          return line.words.map(word => ({
-            word: word,
-            timestamp: line.time
-          }));
-        });
-        setSyncedLyrics(formattedDemoLyrics);
-        setCurrentLine(0);
-        setCurrentWord(0);
-        return;
-      }
       
       // For real songs, try to get lyrics from the API
       console.log('Attempting to fetch lyrics from API...');
