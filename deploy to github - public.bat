@@ -1,178 +1,88 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Ensure the script doesn't close on errors
-if not defined in_subprocess (cmd /k set in_subprocess=y ^& %0 %*) & exit )
+:: Start
+echo 🚀 Starting GitHub repo upload...
 
-echo Starting GitHub repository creation script...
-
-:: Check for Git
-where git >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Error: Git is not installed or not in the system PATH.
-    echo Please install Git and try again.
-    goto :error
+:: Check if Git is installed
+where git >nul 2>nul || (
+    echo ❌ Git not found. Install Git and try again.
+    exit /b 1
 )
 
-:: Check for cURL
-where curl >nul 2>nul
-if %errorlevel% neq 0 (
-    echo Error: cURL is not installed or not in the system PATH.
-    echo Please install cURL and try again.
-    goto :error
+:: Check if curl is installed
+where curl >nul 2>nul || (
+    echo ❌ cURL not found. Install cURL and try again.
+    exit /b 1
 )
 
-:: Get GitHub credentials
-:get_credentials
-set /p "github_username=Enter your GitHub username: "
-set /p "github_token=Enter your GitHub personal access token: "
-
-if "%github_username%"=="" (
-    echo Error: GitHub username cannot be empty.
-    goto :get_credentials
-)
-if "%github_token%"=="" (
-    echo Error: GitHub token cannot be empty.
-    goto :get_credentials
-)
+:: Prompt for GitHub username and token
+set /p "github_username=👤 GitHub username: "
+set /p "github_token=🔐 GitHub token: "
 
 :: Validate token
-echo Validating GitHub token...
-curl -s -H "Authorization: token %github_token%" https://api.github.com/user > nul
-if %errorlevel% neq 0 (
-    echo Error: Invalid GitHub token or authentication failed.
-    goto :get_credentials
+echo 🔎 Validating GitHub token...
+curl -s -H "Authorization: token %github_token%" https://api.github.com/user >nul
+if errorlevel 1 (
+    echo ❌ Invalid token or network error.
+    exit /b 1
 )
 
-:: Get repository name
+:: Get repo name: current folder + timestamp
 for %%I in (.) do set "repo_name=%%~nxI"
-set "timestamp=%date:~-4,4%%date:~-10,2%%date:~-7,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
+set "timestamp=%date:~-4%%date:~4,2%%date:~7,2%_%time:~0,2%%time:~3,2%"
 set "timestamp=%timestamp: =0%"
-set "unique_repo_name=%repo_name%_%timestamp%"
-set "url_repo_name=%unique_repo_name: =-%"
-echo Repository name: %url_repo_name%
+set "full_repo_name=%repo_name%_%timestamp%"
+set "remote_url=https://github.com/%github_username%/%full_repo_name%.git"
+echo 📁 Repo will be: %full_repo_name%
 
-:: Initialize Git repository
-git init
-if %errorlevel% neq 0 (
-    echo Error: Failed to initialize Git repository.
-    goto :error
-)
-
-:: Add all files
-git add .
-if %errorlevel% neq 0 (
-    echo Error: Failed to add files to Git repository.
-    goto :error
-)
-
-:: Commit files
-git commit -m "Initial commit"
-if %errorlevel% neq 0 (
-    echo Error: Failed to commit files.
-    goto :error
-)
-
-:: Create GitHub repository
-echo Creating GitHub repository...
-set "api_url=https://api.github.com/user/repos"
-set "json_data={\"name\":\"%url_repo_name%\"}"
-
+:: Create GitHub repo
 curl -s -H "Authorization: token %github_token%" ^
      -H "Content-Type: application/json" ^
      -X POST ^
-     -d "%json_data%" ^
-     "%api_url%" > repo_creation_response.json
+     -d "{\"name\":\"%full_repo_name%\"}" ^
+     https://api.github.com/user/repos > repo_response.json
 
-if %errorlevel% neq 0 (
-    echo Error: Failed to create GitHub repository.
-    type repo_creation_response.json
-    goto :error
+findstr /C:"\"full_name\": \"%github_username%/%full_repo_name%\"" repo_response.json >nul || (
+    echo ❌ Failed to create repo or it already exists.
+    type repo_response.json
+    del repo_response.json
+    exit /b 1
+)
+del repo_response.json
+echo ✅ GitHub repo created!
+
+:: Init repo (if not already)
+if not exist ".git" (
+    git init
+    echo 🌀 Initialized empty Git repo.
 )
 
-:: Check if repository was created successfully
-findstr /C:"\"name\": \"%url_repo_name%\"" repo_creation_response.json > nul
-if %errorlevel% neq 0 (
-    echo Error: Repository creation failed or returned unexpected response.
-    type repo_creation_response.json
-    goto :error
-)
+:: Set up remote origin
+git remote remove origin >nul 2>nul
+git remote add origin %remote_url%
+echo 🌐 Remote origin set to: %remote_url%
 
-echo Repository created successfully.
-
-:: Check if remote origin exists and remove it
-git remote -v | findstr "origin" > nul
-if %errorlevel% equ 0 (
-    echo A remote origin already exists. Removing it...
-    git remote remove origin
-    if !errorlevel! neq 0 (
-        echo Error: Failed to remove existing remote.
-        goto :error
-    )
-    echo Existing remote removed successfully.
-)
-
-:: Construct and display the remote URL
-set "remote_url=https://github.com/%github_username%/%url_repo_name%.git"
-echo.
-echo Constructed remote URL: %remote_url%
-echo.
-
-:: Add remote
-echo Adding new remote origin...
-git remote add origin "%remote_url%"
-if %errorlevel% neq 0 (
-    echo Error: Failed to add remote origin.
-    echo Current remotes:
-    git remote -v
-    goto :error
-)
-
-:: Verify remote was added correctly
-echo Verifying remote...
-for /f "tokens=2" %%a in ('git remote -v ^| findstr "(fetch)"') do set "actual_url=%%a"
-echo Actual remote URL: !actual_url!
-
-if not "!actual_url!"=="%remote_url%" (
-    echo Error: Remote URL mismatch.
-    echo Expected: %remote_url%
-    echo Actual: !actual_url!
-    goto :error
-)
-
-echo Remote origin added and verified successfully.
-
-:: Get current branch name
-for /f "tokens=2" %%i in ('git branch --show-current') do set "current_branch=%%i"
-if "%current_branch%"=="" set "current_branch=master"
-
-:: Commit any pending changes
+:: Add and commit files (respects .gitignore)
 git add .
-git commit -m "Update before push" || echo No changes to commit.
+git status | findstr /C:"Changes to be committed" >nul
+if %errorlevel% equ 0 (
+    git commit -m "Initial commit"
+    echo 📥 Files committed.
+) else (
+    echo ⚠️ Nothing to commit.
+)
 
 :: Push to GitHub
-echo Pushing to GitHub...
-git push -u origin %current_branch%
+echo ☁️ Pushing to GitHub...
+git branch -M main
+git push -u origin main
 if %errorlevel% neq 0 (
-    echo Error: Failed to push to GitHub.
-    echo Checking remote URL:
-    git remote -v
-    echo Checking branch name:
-    git branch
-    echo Checking git status:
-    git status
-    goto :error
+    echo ❌ Push failed.
+    exit /b 1
 )
 
-echo Success! Repository created and files pushed.
-echo You can find your new repository at: https://github.com/%github_username%/%url_repo_name%
-goto :end
-
-:error
-echo An error occurred. Please check the output above for details.
-pause
-exit /b 1
-
-:end
-echo Script completed successfully.
+:: Done!
+echo ✅ All done! View your repo at:
+echo 🔗 https://github.com/%github_username%/%full_repo_name%
 pause
