@@ -17,8 +17,24 @@ if %errorlevel% neq 0 (
 
 :: Get GitHub information directly
 set /p "github_username=Enter your GitHub username: "
-set /p "repo_name=Enter your GitHub repository name: "
+set /p "repo_name=Enter your GitHub repository name (ONLY the name, NOT the full URL): "
 set /p "github_token=Enter your GitHub personal access token: "
+
+:: Clean up repo name (remove URL if accidentally entered)
+if "!repo_name:~0,8!"=="https://" (
+    echo WARNING: You entered a URL instead of just the repository name.
+    echo Attempting to extract repository name from URL...
+    
+    :: Extract repo name from URL
+    for /f "tokens=5 delims=/" %%a in ("!repo_name!") do (
+        set "repo_name=%%a"
+    )
+    
+    :: Remove any .git extension
+    set "repo_name=!repo_name:.git=!"
+    
+    echo Extracted repository name: !repo_name!
+)
 
 :: Log the info (except token for security)
 echo GitHub username: %github_username% >> "%log_file%"
