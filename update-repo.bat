@@ -21,14 +21,35 @@ echo Git found >> "%log_file%"
 set /p "repo_url=Enter your GitHub repository URL: "
 echo GitHub repository URL (masked): ***repo-url*** >> "%log_file%"
 
-:: Extract username and repo name from URL
+:: Extract username and repo name from URL with better error handling
+echo Parsing repository URL: %repo_url% >> "%log_file%"
+
+:: Clear variables first
+set "github_username="
+set "repo_name="
+
+:: Try standard format first: https://github.com/username/repo
 for /f "tokens=4,5 delims=/" %%a in ("%repo_url%") do (
-    set "github_username=%%a"
-    set "repo_name=%%b"
+    if not "%%a"=="" if not "%%b"=="" (
+        set "github_username=%%a"
+        set "repo_name=%%b"
+    )
+)
+
+:: If not set, try to handle other formats
+if "%github_username%"=="" (
+    echo Warning: Could not parse URL in standard format >> "%log_file%"
+    
+    :: Try to extract directly
+    set "github_username=%repo_url:https://github.com/=%"
+    set "github_username=%github_username:/=" & set "repo_name=%"
 )
 
 :: Remove .git extension if present
 set "repo_name=%repo_name:.git=%"
+
+:: Additional cleanup for repo name (remove any trailing spaces or characters)
+for /f "tokens=1 delims= " %%a in ("%repo_name%") do set "repo_name=%%a"
 
 echo GitHub username: %github_username% >> "%log_file%"
 echo Repository name: %repo_name% >> "%log_file%"
@@ -57,8 +78,19 @@ if not exist ".git" (
 
 :: Configure the remote repository with the token for authentication
 echo Setting up remote repository...
+echo Configuring remote for %github_username%/%repo_name% >> "%log_file%"
+
+:: Debug output
+echo DEBUG: Username=%github_username%, Repo=%repo_name% >> "%log_file%"
+
+:: Remove existing remote
 git remote remove origin 2>nul
-git remote add origin "https://%github_token%@github.com/%github_username%/%repo_name%.git"
+
+:: Add the remote with appropriate auth
+set "remote_url=https://%github_token%@github.com/%github_username%/%repo_name%.git"
+echo Remote URL: https://***@github.com/%github_username%/%repo_name%.git >> "%log_file%"
+git remote add origin "%remote_url%"
+
 if %errorlevel% neq 0 (
     echo Error: Failed to set up remote repository.
     echo Failed to set up remote repository >> "%log_file%"
@@ -103,7 +135,13 @@ echo Commit successful >> "%log_file%"
 
 :: Push changes
 echo Pushing changes to GitHub...
-git push -u origin HEAD
+echo Pushing to: https://***@github.com/%github_username%/%repo_name%.git >> "%log_file%"
+
+:: Just to be absolutely sure, let's log what we're pushing to
+git remote -v >> "%log_file%"
+
+:: Push changes with verbose output to help debug
+git push -u origin HEAD -v
 if %errorlevel% neq 0 (
     echo Error: Failed to push changes to GitHub.
     echo Failed to push changes >> "%log_file%"
