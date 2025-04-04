@@ -263,13 +263,18 @@ function App() {
     try {
       console.log(`Fetching lyrics for ${title} by ${artist}`);
       
-      // DIRECT APPROACH WITHOUT COMPLEX LOGIC
-      // Call the API with minimal error handling
+      // Use window.location.origin for API calls when deployed to Vercel
+      // In local dev, use the environment variable
       const apiUrl = process.env.REACT_APP_API_URL || window.location.origin;
-      console.log(`Direct API call to: ${apiUrl}/api/lyrics`);
+      console.log(`API URL: ${apiUrl}`);
       
-      const response = await axios.get(`${apiUrl}/api/lyrics`, {
-        params: { title, artist }
+      // Try the direct-lyrics endpoint first (simpler, more reliable)
+      const lyricsEndpoint = `/api/direct-lyrics`;
+      console.log(`Making API call to: ${apiUrl}${lyricsEndpoint}`);
+      
+      const response = await axios.get(`${apiUrl}${lyricsEndpoint}`, {
+        params: { title, artist },
+        timeout: 15000 // 15-second timeout
       });
       
       console.log(`API response status:`, response.status);
