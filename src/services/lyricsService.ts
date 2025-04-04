@@ -28,8 +28,15 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Synced
     }
     
     try {
-      // Construct the full API URL
-      const apiEndpoint = `${API_URL}/api/lyrics`;
+      // Construct the full API URL - adjust path for Vercel deployment
+      let apiEndpoint;
+      if (window.location.hostname.includes('vercel.app')) {
+        // For Vercel deployments, use /lyrics directly per the rewrite rules
+        apiEndpoint = `${window.location.origin}/lyrics`;
+      } else {
+        // For local development, use the original path
+        apiEndpoint = `${API_URL}/api/lyrics`;
+      }
       console.log(`Making API request to: ${apiEndpoint}`);
       
       const response = await axios.get(apiEndpoint, {
