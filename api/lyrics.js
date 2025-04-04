@@ -1,9 +1,18 @@
-// Main lyrics API - redirects to direct-lyrics for better reliability
+// Main lyrics API - optimized for Happi.dev
+const happiHandler = require('./happi-lyrics');
 const directLyricsHandler = require('./direct-lyrics');
 
-module.exports = (req, res) => {
-  console.log('[lyrics.js] Received request, redirecting to direct-lyrics for better reliability');
+module.exports = async (req, res) => {
+  console.log('[lyrics.js] Received request, checking for Happi.dev API key');
   
-  // Simply forward the request to the direct-lyrics handler
-  return directLyricsHandler(req, res);
+  // Check if Happi.dev API key is available
+  const hasHappiKey = !!process.env.HAPPI_API_KEY;
+  
+  if (hasHappiKey) {
+    console.log('[lyrics.js] Happi.dev API key found, using Happi.dev API');
+    return happiHandler(req, res);
+  } else {
+    console.log('[lyrics.js] No Happi.dev API key found, falling back to direct-lyrics');
+    return directLyricsHandler(req, res);
+  }
 };

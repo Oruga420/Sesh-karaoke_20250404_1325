@@ -37,7 +37,8 @@ module.exports = async (req, res) => {
     env: {
       node_env: process.env.NODE_ENV,
       api_url: process.env.REACT_APP_API_URL || '(not set)',
-      spotify_client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID ? 'set' : 'not set'
+      spotify_client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID ? 'set' : 'not set',
+      happi_api_key: process.env.HAPPI_API_KEY ? 'set' : 'not set'
     },
     request: {
       method: req.method,
@@ -57,19 +58,29 @@ module.exports = async (req, res) => {
         method: 'GET',
         parameters: 'title, artist',
         status: 'active',
-        implementation: 'Redirects to direct-lyrics for better reliability'
+        implementation: process.env.HAPPI_API_KEY ? 'Using Happi.dev API for lyrics' : 'Falling back to direct-lyrics'
+      },
+      happiLyrics: {
+        url: '/api/happi-lyrics',
+        method: 'GET',
+        parameters: 'title, artist',
+        status: process.env.HAPPI_API_KEY ? 'active' : 'not configured',
+        description: 'Fast and reliable lyrics API with 10,000 free requests/month',
+        configured: !!process.env.HAPPI_API_KEY
       },
       directLyrics: {
         url: '/api/direct-lyrics',
         method: 'GET',
         parameters: 'title, artist',
         status: 'active',
-        description: 'Reliable lyrics provider with built-in popular songs',
-        popularSongsCount: popularSongs.length,
+        description: 'Fallback lyrics provider with built-in popular songs',
+        popularSongsCount: popularSongs ? popularSongs.length : 0,
         popularSongsList: popularSongs
       }
     },
-    recommendations: "Use /api/direct-lyrics endpoint for most reliable lyrics fetching"
+    recommendations: process.env.HAPPI_API_KEY ?
+      "The app is properly configured with Happi.dev API for reliable lyrics." :
+      "Please set up a HAPPI_API_KEY in your environment variables for better lyrics."
   };
   
   // Return the debug info
