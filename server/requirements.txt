@@ -1,1 +1,3 @@
 syncedlyrics==1.2.0
+lrclib-api==0.1.0
+lrc-kit==1.1.1

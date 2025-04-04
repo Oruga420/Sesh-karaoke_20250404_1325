@@ -31,12 +31,35 @@ export const loginUrl = `https://accounts.spotify.com/authorize?client_id=${clie
 
 // Extract the token from the URL after the user logs in
 export const getTokenFromUrl = (): any => {
-  return window.location.hash
-    .substring(1)
-    .split('&')
-    .reduce((initial: any, item) => {
-      let parts = item.split('=');
-      initial[parts[0]] = decodeURIComponent(parts[1]);
-      return initial;
-    }, {});
+  // Handle when the URL doesn't have a hash
+  if (!window.location.hash) {
+    return {};
+  }
+  
+  try {
+    return window.location.hash
+      .substring(1)
+      .split('&')
+      .reduce((initial: any, item) => {
+        const parts = item.split('=');
+        if (parts.length === 2) {
+          initial[parts[0]] = decodeURIComponent(parts[1]);
+        }
+        return initial;
+      }, {});
+  } catch (error) {
+    console.error('Error parsing URL hash:', error);
+    return {};
+  }
+};
+
+// Check if we're in offline/demo mode
+export const isDemoMode = (): boolean => {
+  const token = localStorage.getItem('spotify_token');
+  return token === 'demo-mode-token';
+};
+
+// Check if we're connected to the internet
+export const checkOnlineStatus = (): boolean => {
+  return navigator.onLine;
 };

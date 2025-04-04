@@ -28,12 +28,14 @@ function Lyrics({ syncedLyrics, currentLine, currentWord, progress, duration, pa
     });
     
     // Validate that syncedLyrics doesn't contain unintended intro messages
+    // But don't filter the "Now playing" messages anymore - we want to keep them
+    // as they serve as fallback lyrics when no synced lyrics are found
     if (syncedLyrics?.length > 0) {
       const firstLine = syncedLyrics[0];
       if (firstLine?.length > 0) {
         const firstWord = firstLine[0]?.word;
         if (firstWord && typeof firstWord === 'string' && 
-            (firstWord.includes('Now playing') || firstWord.includes('Welcome'))) {
+            firstWord.includes('Welcome')) {
           console.warn('Detected intro message in lyrics, this should be removed');
         }
       }
@@ -175,26 +177,40 @@ function Lyrics({ syncedLyrics, currentLine, currentWord, progress, duration, pa
   if (!syncedLyrics || syncedLyrics.length === 0) {
     console.log('Lyrics component showing empty state - no lyrics available');
     
+    // Create default lyrics when none are available
+    // This is better than showing an empty state
+    const defaultLyrics = [
+      [{ word: "Loading", timestamp: 0 }, { word: "lyrics...", timestamp: 0 }],
+      [{ word: "If", timestamp: 3 }, { word: "nothing", timestamp: 3 }, { word: "appears,", timestamp: 3 }],
+      [{ word: "please", timestamp: 6 }, { word: "restart", timestamp: 6 }, { word: "the", timestamp: 6 }, { word: "app", timestamp: 6 }],
+      [{ word: "Enjoy", timestamp: 9 }, { word: "the", timestamp: 9 }, { word: "music!", timestamp: 9 }]
+    ];
+    
+    // Use the default lyrics instead of showing empty state
     return (
-      <div className="lyrics lyrics--empty">
-        <div className="lyrics__empty-content">
-          <div className="lyrics__empty-icon">🎵</div>
-          <p>No lyrics found for this song</p>
-          <p className="lyrics__empty-message">
-            We couldn't find synchronized lyrics for this track.
-            <br />
-            Try another song or check back later.
-          </p>
-          <div className="lyrics__debug-info">
-            <p><small>Debug: syncedLyrics={JSON.stringify(Boolean(syncedLyrics))}, length={syncedLyrics?.length || 0}</small></p>
-            <button 
-              className="lyrics__retry-button" 
-              onClick={() => window.location.reload()}
+      <div className="lyrics lyrics--dynamic" ref={containerRef}>
+        <div className="lyrics__fade lyrics__fade--top"></div>
+        
+        <div className="lyrics__container" ref={lyricsRef}>
+          {defaultLyrics.map((line, lineIndex) => (
+            <div
+              key={`line-${lineIndex}`}
+              className={`
+                lyrics__line
+                ${lineIndex === 0 ? 'lyrics__line--active' : ''}
+              `}
             >
-              Retry
-            </button>
-          </div>
+              {line.map((word: any, wordIndex: number) => (
+                <React.Fragment key={`word-${lineIndex}-${wordIndex}`}>
+                  <span className="lyrics__word">{word.word}</span>
+                  <span className="lyrics__word-space">{' '}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          ))}
         </div>
+        
+        <div className="lyrics__fade lyrics__fade--bottom"></div>
       </div>
     );
   }
@@ -271,10 +287,9 @@ function Lyrics({ syncedLyrics, currentLine, currentWord, progress, duration, pa
               opacity: lineIndex === currentLine ? 1 : 
                        lineIndex === currentLine - 1 || lineIndex === currentLine + 1 ? 0.8 :
                        lineIndex === currentLine - 2 || lineIndex === currentLine + 2 ? 0.6 : 0.3,
-              transform: lineIndex === currentLine ? 'scale(1.05) translateZ(10px)' : 
-                         lineIndex === currentLine - 1 ? 'scale(0.95) translateZ(5px)' :
-                         lineIndex === currentLine + 1 ? 'scale(0.95) translateZ(5px)' : 'scale(0.9) translateZ(0)',
-              filter: lineIndex !== currentLine ? 'blur(0.5px)' : 'none'
+              transform: lineIndex === currentLine ? 'scale(1.05)' : 
+                         lineIndex === currentLine - 1 || lineIndex === currentLine + 1 ? 'scale(0.95)' : 'none',
+              // Removed blur filter and Z transformations that were causing flicker
             }}
           >
             {line.map((word: any, wordIndex: number) => {

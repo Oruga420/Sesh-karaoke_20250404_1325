@@ -16,35 +16,63 @@ function Login() {
     window.location.href = loginUrl;
   };
 
+  // Function to handle demo mode login
+  const handleDemoMode = (e: React.MouseEvent) => {
+    e.preventDefault();
+    console.log("Demo mode activated");
+    
+    // Store a demo token that the app will recognize
+    localStorage.setItem('spotify_token', 'demo-mode-token');
+    
+    // Reload the page to activate demo mode
+    window.location.reload();
+  };
+
   return (
     <div className="login">
-      <img 
-        src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_Green.png" 
-        alt="Spotify logo"
-        className="login__logo"
-      />
-      
-      {isLoggingIn ? (
-        <div>
-          <p>Conectando con Spotify...</p>
-          <div className="loading-spinner"></div>
-        </div>
-      ) : (
-        <a 
-          href={loginUrl} 
-          className="login__button"
-          onClick={(e) => {
-            e.preventDefault();
-            handleLoginClick();
-          }}
-        >
-          INICIAR SESIÓN CON SPOTIFY
-        </a>
-      )}
-      
-      <p className="login__info">
-        Inicia sesión con tu cuenta de Spotify para ver la letra de la canción que estás escuchando sincronizada con la música.
-      </p>
+      <div className="login__container">
+        <img 
+          src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_Green.png" 
+          alt="Spotify logo"
+          className="login__logo"
+        />
+        
+        <h1>Spotify Karaoke</h1>
+        
+        {isLoggingIn ? (
+          <div>
+            <p>Connecting to Spotify...</p>
+            <div className="loading-spinner"></div>
+          </div>
+        ) : (
+          <>
+            <a 
+              href={loginUrl} 
+              className="login__button"
+              onClick={(e) => {
+                e.preventDefault();
+                handleLoginClick();
+              }}
+            >
+              LOGIN WITH SPOTIFY
+            </a>
+            
+            {/* Demo mode option */}
+            <button onClick={handleDemoMode} className="login__demo-button">
+              TRY OFFLINE MODE
+            </button>
+          </>
+        )}
+        
+        <p className="login__info">
+          Log in with your Spotify account to see synchronized lyrics for the songs you're listening to.
+        </p>
+        
+        <p className="login__disclaimer">
+          Offline mode simulates playback without connecting to Spotify.
+          Use this if you're having connectivity issues.
+        </p>
+      </div>
     </div>
   );
 }
