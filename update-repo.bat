@@ -41,8 +41,11 @@ if "%github_username%"=="" (
     echo Warning: Could not parse URL in standard format >> "%log_file%"
     
     :: Try to extract directly
-    set "github_username=%repo_url:https://github.com/=%"
-    set "github_username=%github_username:/=" & set "repo_name=%"
+    set "temp_string=%repo_url:https://github.com/=%"
+    for /f "tokens=1,2 delims=/" %%a in ("%temp_string%") do (
+        set "github_username=%%a"
+        set "repo_name=%%b"
+    )
 )
 
 :: Remove .git extension if present
