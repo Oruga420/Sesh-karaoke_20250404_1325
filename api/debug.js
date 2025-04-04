@@ -4,7 +4,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
     'Access-Control-Allow-Methods',
-    'GET,OPTIONS,PATCH,DELETE,POST,PUT'
+    'GET,OPTIONS'
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -16,36 +16,17 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
   
-  // Load popular songs for debug info
-  let popularSongs = [];
-  try {
-    const popularSongsModule = require('./popular-songs');
-    if (popularSongsModule && popularSongsModule.songs) {
-      // Count the songs and extract just names
-      popularSongs = popularSongsModule.songs.map(song => ({
-        title: song.title,
-        artist: song.artist
-      }));
-    }
-  } catch (err) {
-    popularSongs = [{title: 'Error', artist: 'Could not load popular songs data'}];
-  }
+  // Check if Happi.dev API key is configured
+  const hasHappiKey = !!process.env.HAPPI_API_KEY;
   
-  // Return enhanced debug information
+  // Return debug information
   const debug = {
     timestamp: new Date().toISOString(),
     env: {
-      node_env: process.env.NODE_ENV,
+      node_env: process.env.NODE_ENV || 'development',
       api_url: process.env.REACT_APP_API_URL || '(not set)',
       spotify_client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID ? 'set' : 'not set',
-      happi_api_key: process.env.HAPPI_API_KEY ? 'set' : 'not set'
-    },
-    request: {
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      query: req.query,
-      body: req.body,
+      happi_api_key: hasHappiKey ? 'set' : 'not set'
     },
     serverInfo: {
       platform: process.platform,
@@ -57,30 +38,21 @@ module.exports = async (req, res) => {
         url: '/api/lyrics',
         method: 'GET',
         parameters: 'title, artist',
-        status: 'active',
-        implementation: process.env.HAPPI_API_KEY ? 'Using Happi.dev API for lyrics' : 'Falling back to direct-lyrics'
-      },
-      happiLyrics: {
-        url: '/api/happi-lyrics',
-        method: 'GET',
-        parameters: 'title, artist',
-        status: process.env.HAPPI_API_KEY ? 'active' : 'not configured',
-        description: 'Fast and reliable lyrics API with 10,000 free requests/month',
-        configured: !!process.env.HAPPI_API_KEY
-      },
-      directLyrics: {
-        url: '/api/direct-lyrics',
-        method: 'GET',
-        parameters: 'title, artist',
-        status: 'active',
-        description: 'Fallback lyrics provider with built-in popular songs',
-        popularSongsCount: popularSongs ? popularSongs.length : 0,
-        popularSongsList: popularSongs
+        status: hasHappiKey ? 'active' : 'fallback mode',
+        provider: 'Happi.dev',
+        configured: hasHappiKey
       }
     },
-    recommendations: process.env.HAPPI_API_KEY ?
-      "The app is properly configured with Happi.dev API for reliable lyrics." :
-      "Please set up a HAPPI_API_KEY in your environment variables for better lyrics."
+    happiApi: {
+      configured: hasHappiKey,
+      status: hasHappiKey ? 'Ready to use' : 'API key not set',
+      freePlan: '10,000 requests per month',
+      documentation: 'https://happi.dev/docs/music',
+      endpoints: [
+        'search - Find songs by title and artist',
+        'lyrics - Get lyrics for a specific song'
+      ]
+    }
   };
   
   // Return the debug info
