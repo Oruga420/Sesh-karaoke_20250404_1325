@@ -8,13 +8,13 @@
       "maxDuration": 10
     }
   },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/callback", "dest": "/api/callback.js" },
-    { "src": "/health", "dest": "/api/health.js" },
-    { "src": "/refresh-token", "dest": "/api/refresh-token.js" },
-    { "src": "/lyrics", "dest": "/api/lyrics.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/callback", "destination": "/api/callback.js" },
+    { "source": "/health", "destination": "/api/health.js" },
+    { "source": "/refresh-token", "destination": "/api/refresh-token.js" },
+    { "source": "/lyrics", "destination": "/api/lyrics.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
