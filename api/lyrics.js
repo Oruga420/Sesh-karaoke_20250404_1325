@@ -4,6 +4,9 @@ const axios = require('axios');
 // Happi.dev API base URL
 const HAPPI_API_BASE = 'https://api.happi.dev/v1/music';
 
+// Debug mode
+const DEBUG = true;
+
 // Simple in-memory cache to reduce API calls
 const cache = new Map();
 const CACHE_TTL = 3600000; // 1 hour in milliseconds
@@ -43,6 +46,14 @@ module.exports = async (req, res) => {
     // Get Happi.dev API key
     const apiKey = process.env.HAPPI_API_KEY;
     
+    if (DEBUG) {
+      console.log('[lyrics] HAPPI_API_KEY found:', !!apiKey);
+      console.log('[lyrics] HAPPI_API_KEY length:', apiKey ? apiKey.length : 0);
+      if (apiKey) {
+        console.log('[lyrics] HAPPI_API_KEY preview:', `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 3)}`);
+      }
+    }
+    
     if (!apiKey) {
       console.error('[lyrics] No Happi.dev API key found');
       return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
@@ -73,6 +84,13 @@ async function getLyricsFromHappi(title, artist, apiKey) {
   const cleanTitle = title.replace(/\(.*?\)/g, '').trim();
   const cleanArtist = artist.replace(/\(.*?\)/g, '').trim();
   
+  // Debug search request
+  if (DEBUG) {
+    console.log(`[lyrics] Searching for: "${cleanArtist} ${cleanTitle}" with Happi API`);
+    console.log(`[lyrics] Search URL: ${HAPPI_API_BASE}/search`);
+    console.log(`[lyrics] Using API key: ${apiKey.substring(0, 5)}...`);
+  }
+  
   // Search for the song
   const searchResponse = await axios.get(`${HAPPI_API_BASE}/search`, {
     params: {
@@ -84,6 +102,13 @@ async function getLyricsFromHappi(title, artist, apiKey) {
       'x-happi-key': apiKey
     }
   });
+  
+  // Debug search response
+  if (DEBUG) {
+    console.log(`[lyrics] Search response status: ${searchResponse.status}`);
+    console.log(`[lyrics] Search success: ${searchResponse.data.success}`);
+    console.log(`[lyrics] Found results: ${searchResponse.data.result ? searchResponse.data.result.length : 0}`);
+  }
   
   // Check if we found any results
   if (!searchResponse.data.success || !searchResponse.data.result || searchResponse.data.result.length === 0) {

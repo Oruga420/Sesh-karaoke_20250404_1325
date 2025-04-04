@@ -1,3 +1,5 @@
+const axios = require('axios');
+
 module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -17,7 +19,8 @@ module.exports = async (req, res) => {
   }
   
   // Check if Happi.dev API key is configured
-  const hasHappiKey = !!process.env.HAPPI_API_KEY;
+  const happiApiKey = process.env.HAPPI_API_KEY;
+  const hasHappiKey = !!happiApiKey;
   
   // Return comprehensive debug information
   const debug = {
@@ -34,7 +37,9 @@ module.exports = async (req, res) => {
       node_env: process.env.NODE_ENV || 'development',
       api_url: process.env.REACT_APP_API_URL || '(not set)',
       spotify_client_id: process.env.REACT_APP_SPOTIFY_CLIENT_ID ? 'set' : 'not set',
-      happi_api_key: hasHappiKey ? 'set' : 'not set'
+      happi_api_key: hasHappiKey ? 'set' : 'not set',
+      happi_key_length: happiApiKey ? happiApiKey.length : 0,
+      happi_key_preview: happiApiKey ? `${happiApiKey.substring(0, 5)}...${happiApiKey.substring(happiApiKey.length - 3)}` : 'not set',
     },
     serverInfo: {
       platform: process.platform,
@@ -43,25 +48,28 @@ module.exports = async (req, res) => {
     },
     apis: {
       lyrics: {
-        url: '/api/lyrics',
+        url: '/lyrics',
+        fullUrl: '/api/lyrics.js',
         method: 'GET',
         parameters: 'title, artist',
         status: hasHappiKey ? 'active' : 'fallback mode',
         provider: 'Happi.dev',
         configured: hasHappiKey,
-        testUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'unknown'}/api/lyrics?title=Test&artist=Artist`
+        testUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'unknown'}/lyrics?title=Test&artist=Artist`
       },
       debug: {
-        url: '/api/debug',
+        url: '/debug',
+        fullUrl: '/api/debug.js',
         method: 'GET',
         status: 'active'
       },
       directLyrics: {
-        url: '/api/direct-lyrics',
+        url: '/direct-lyrics',
+        fullUrl: '/api/direct-lyrics.js',
         method: 'GET',
         parameters: 'title, artist',
         status: 'active',
-        testUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'unknown'}/api/direct-lyrics?title=Test&artist=Artist`
+        testUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'unknown'}/direct-lyrics?title=Test&artist=Artist`
       }
     },
     happiApi: {
@@ -84,6 +92,87 @@ module.exports = async (req, res) => {
       directLyrics: "Use the direct-lyrics endpoint for testing - it doesn't require an API key"
     }
   };
+  
+  // Test Happi API if requested
+  if (req.query.testHappi === 'true') {
+    try {
+      if (!happiApiKey) {
+        debug.happiTest = {
+          success: false,
+          error: 'No Happi API key found in environment variables'
+        };
+      } else {
+        // Test artist and title
+        const artist = req.query.artist || 'Don Omar';
+        const title = req.query.title || 'Conteo';
+        
+        debug.happiTest = {
+          status: 'Testing Happi API...',
+          apiKeyFound: true,
+          apiKeyPreview: `${happiApiKey.substring(0, 5)}...${happiApiKey.substring(happiApiKey.length - 3)}`,
+          testQuery: { artist, title }
+        };
+        
+        // Make test request to Happi API
+        const searchResponse = await axios.get('https://api.happi.dev/v1/music/search', {
+          params: {
+            q: `${artist} ${title}`,
+            limit: 1,
+            apikey: happiApiKey
+          },
+          headers: {
+            'x-happi-key': happiApiKey
+          }
+        });
+        
+        debug.happiTest.searchResponse = {
+          status: searchResponse.status,
+          success: searchResponse.data.success,
+          resultCount: searchResponse.data.result ? searchResponse.data.result.length : 0,
+          firstResult: searchResponse.data.result && searchResponse.data.result.length > 0 ? 
+            {
+              track: searchResponse.data.result[0].track,
+              artist: searchResponse.data.result[0].artist,
+              hasLyricsApi: !!searchResponse.data.result[0].api_lyrics
+            } : null,
+          completeResult: searchResponse.data
+        };
+        
+        // If we found a track, try to get lyrics
+        if (searchResponse.data.success && 
+            searchResponse.data.result && 
+            searchResponse.data.result.length > 0 &&
+            searchResponse.data.result[0].api_lyrics) {
+          
+          const lyricsUrl = searchResponse.data.result[0].api_lyrics;
+          const lyricsResponse = await axios.get(lyricsUrl, {
+            headers: {
+              'x-happi-key': happiApiKey
+            }
+          });
+          
+          debug.happiTest.lyricsResponse = {
+            status: lyricsResponse.status,
+            success: lyricsResponse.data.success,
+            hasLyrics: !!lyricsResponse.data.result && !!lyricsResponse.data.result.lyrics,
+            preview: lyricsResponse.data.result && lyricsResponse.data.result.lyrics ? 
+              lyricsResponse.data.result.lyrics.substring(0, 100) + '...' : null,
+            completeResult: lyricsResponse.data
+          };
+        }
+      }
+    } catch (error) {
+      debug.happiTest = {
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        response: error.response ? {
+          status: error.response.status,
+          data: error.response.data
+        } : null
+      };
+    }
+  }
   
   // Return the debug info
   res.status(200).json(debug);
