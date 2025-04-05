@@ -9,14 +9,24 @@ let redirectUri = process.env.REACT_APP_REDIRECT_URI;
 if (!redirectUri) {
   // In browser environment, determine the URI based on current host
   if (typeof window !== 'undefined') {
-    // For Vercel deployments, we need to use the API routes format
-    if (window.location.hostname.includes('vercel.app')) {
-      redirectUri = `${window.location.origin}/api/callback`;
-    } else {
-      // For local development or custom domains
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      redirectUri = `${protocol}//${host}/callback`;
+    // Always use the current origin for redirect, that way the callback will work 
+    // regardless of which Vercel URL is being used for this deployment
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    
+    // For Vercel deployments or production, use /api/callback path
+    // For local development, use /callback path
+    const callbackPath = window.location.hostname.includes('vercel.app') 
+      ? '/api/callback' 
+      : '/callback';
+    
+    redirectUri = `${protocol}//${host}${callbackPath}`;
+    
+    // Store the redirect URI in session storage to help with debugging
+    try {
+      sessionStorage.setItem('spotify_redirect_uri', redirectUri);
+    } catch (e) {
+      console.error('Failed to store redirect URI in session storage', e);
     }
   } else {
     // Fallback for server-side rendering
