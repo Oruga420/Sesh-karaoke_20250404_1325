@@ -7,6 +7,9 @@ const HAPPI_API_BASE = 'https://api.happi.dev/v1/music';
 // Debug mode
 const DEBUG = true;
 
+// Hard-coded test API key (for development only)
+const TEST_API_KEY = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
+
 // Simple in-memory cache to reduce API calls
 const cache = new Map();
 const CACHE_TTL = 3600000; // 1 hour in milliseconds
@@ -57,14 +60,20 @@ module.exports = async (req, res) => {
     
     // Check direct query string override for testing (NEVER use in production)
     if (req.query.testApiKey && req.query.testApiKey === 'true') {
-      apiKey = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
+      apiKey = TEST_API_KEY;
       console.log('[lyrics] Using test API key from query string');
+    }
+    
+    // Force test mode if explicitly requested
+    if (req.query.forceTest === 'true') {
+      console.log('[lyrics] Force test mode enabled, ignoring environment API key');
+      apiKey = TEST_API_KEY;
     }
     
     // Fallback for testing
     if (!apiKey) {
       // Try a hardcoded key for testing - remove in production!
-      apiKey = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
+      apiKey = TEST_API_KEY;
       console.log('[lyrics] No HAPPI_API_KEY in env, using fallback test key');
     }
     
@@ -76,6 +85,24 @@ module.exports = async (req, res) => {
     
     // Search for the song
     try {
+      // Test the API key first with a simple request if debug mode enabled
+      if (DEBUG && req.query.debug === 'true') {
+        console.log('[lyrics] Testing API key before full lyrics request...');
+        try {
+          const testResponse = await axios.get(`${HAPPI_API_BASE}/artists/celine-dion`, {
+            params: { apikey: apiKey },
+            headers: { 'x-happi-key': apiKey }
+          });
+          console.log('[lyrics] Test request successful:', testResponse.status);
+        } catch (testError) {
+          console.error('[lyrics] Test request failed:', testError.message);
+          if (testError.response) {
+            console.error('[lyrics] Test response:', testError.response.status, testError.response.data);
+          }
+          // Still proceed with the actual lyrics request
+        }
+      }
+      
       const lyrics = await getLyricsFromHappi(title, artist, apiKey);
       
       // Cache the result
@@ -85,6 +112,24 @@ module.exports = async (req, res) => {
       return res.status(200).json({ lyrics });
     } catch (error) {
       console.error(`[lyrics] Happi.dev API error: ${error.message}`);
+      
+      // Provide more detailed error information in debug mode
+      if (DEBUG && req.query.debug === 'true') {
+        const errorDetails = {
+          message: error.message,
+          stack: error.stack,
+          response: error.response ? {
+            status: error.response.status,
+            data: error.response.data
+          } : null
+        };
+        
+        return res.status(200).json({ 
+          lyrics: createFallbackLyrics(title, artist),
+          debug: errorDetails 
+        });
+      }
+      
       return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
     }
   } catch (error) {
