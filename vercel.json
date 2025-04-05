@@ -19,7 +19,8 @@
     { "source": "/refresh-token", "destination": "/api/refresh-token.js" },
     { "source": "/direct-lyrics", "destination": "/api/direct-lyrics.js" },
     { "source": "/direct-lyrics-test", "destination": "/api/direct-lyrics-test.js" },
-    { "source": "/lyrics", "destination": "/api/lyrics.js" },
+    { "source": "/fixed-lyrics", "destination": "/api/fixed-lyrics.js" },
+    { "source": "/lyrics", "destination": "/api/fixed-lyrics.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

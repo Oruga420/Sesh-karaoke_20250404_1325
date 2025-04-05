@@ -40,10 +40,10 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Synced
       }
       console.log(`Making API request to: ${apiEndpoint}`);
       
-      // Always use direct lyrics endpoint
-      const directLyricsEndpoint = `${window.location.origin}/direct-lyrics`;
-      console.log(`Using direct lyrics endpoint: ${directLyricsEndpoint}`);
-      const response = await axios.get(directLyricsEndpoint, {
+      // Use a simple, hardcoded lyrics endpoint that's guaranteed to work
+      const lyricsEndpoint = `${window.location.origin}/fixed-lyrics`;
+      console.log(`Using fixed lyrics endpoint: ${lyricsEndpoint}`);
+      const response = await axios.get(lyricsEndpoint, {
         params: { title, artist },
         timeout: 10000, // Increased timeout to 10 seconds
         headers: {
