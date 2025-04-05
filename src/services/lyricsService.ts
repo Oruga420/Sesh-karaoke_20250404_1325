@@ -32,15 +32,22 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Synced
       let apiEndpoint;
       if (window.location.hostname.includes('vercel.app')) {
         // For Vercel deployments, use /lyrics directly per the rewrite rules
-        apiEndpoint = `${window.location.origin}/lyrics`;
+        // Add direct=true to use direct lyrics as a fallback
+        apiEndpoint = `${window.location.origin}/lyrics?direct=true`;
       } else {
         // For local development, use the original path
         apiEndpoint = `${API_URL}/api/lyrics`;
       }
       console.log(`Making API request to: ${apiEndpoint}`);
       
-      const response = await axios.get(apiEndpoint, {
-        params: { title, artist },
+      // For Vercel deployments with direct=true, we need to append title and artist to the URL
+      let fullUrl = apiEndpoint;
+      const params = window.location.hostname.includes('vercel.app') ? 
+        { title, artist } : 
+        { title, artist, direct: 'true' };
+        
+      const response = await axios.get(fullUrl, {
+        params,
         timeout: 10000, // Increased timeout to 10 seconds
         headers: {
           'Cache-Control': 'no-cache',

@@ -104,15 +104,40 @@ module.exports = async (req, res) => {
       return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
     }
     
-    // Search for the song
+    // Should we use direct lyrics?
+    const useDirectLyrics = req.query.direct === 'true';
+    
+    // If direct lyrics requested, bypass Happi API
+    if (useDirectLyrics) {
+      console.log('[lyrics] Direct lyrics requested, bypassing Happi API');
+      try {
+        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
+        console.log(`[lyrics] Getting direct lyrics from: ${directLyricsUrl}`);
+        
+        const directResponse = await axios.get(directLyricsUrl, {
+          params: { title, artist },
+          timeout: 3000
+        });
+        
+        if (directResponse.data && directResponse.data.lyrics) {
+          console.log('[lyrics] Using direct lyrics');
+          return res.status(200).json(directResponse.data);
+        }
+      } catch (directError) {
+        console.error('[lyrics] Direct lyrics failed:', directError.message);
+      }
+    }
+    
+    // Search for the song using Happi API
     try {
       // Test the API key first with a simple request if debug mode enabled
       if (DEBUG && req.query.debug === 'true') {
         console.log('[lyrics] Testing API key before full lyrics request...');
         try {
-          const testResponse = await axios.get(`${HAPPI_API_BASE}/artists/celine-dion`, {
+          const testResponse = await axios.get(`${HAPPI_API_BASE}/artists/drake`, {
             params: { apikey: apiKey },
-            headers: { 'x-happi-key': apiKey }
+            headers: { 'x-happi-key': apiKey },
+            timeout: 3000
           });
           console.log('[lyrics] Test request successful:', testResponse.status);
         } catch (testError) {
@@ -133,6 +158,24 @@ module.exports = async (req, res) => {
       return res.status(200).json({ lyrics });
     } catch (error) {
       console.error(`[lyrics] Happi.dev API error: ${error.message}`);
+      
+      // Try using direct lyrics as a fallback
+      try {
+        console.log('[lyrics] Trying direct lyrics as fallback');
+        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
+        
+        const directResponse = await axios.get(directLyricsUrl, {
+          params: { title, artist },
+          timeout: 3000
+        });
+        
+        if (directResponse.data && directResponse.data.lyrics) {
+          console.log('[lyrics] Using direct lyrics as fallback');
+          return res.status(200).json(directResponse.data);
+        }
+      } catch (directError) {
+        console.error('[lyrics] Direct lyrics fallback failed:', directError.message);
+      }
       
       // Provide more detailed error information in debug mode
       if (DEBUG && req.query.debug === 'true') {
