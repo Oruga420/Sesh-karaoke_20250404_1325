@@ -44,9 +44,10 @@ module.exports = async (req, res) => {
     // Test 1: Simple API endpoint test
     console.log('Testing simple API endpoint');
     try {
-      const simpleTest = await axios.get(`${HAPPI_API_BASE}/artists/celine-dion`, {
+      const simpleTest = await axios.get(`${HAPPI_API_BASE}/artists/drake`, {
         params: { apikey: apiKey },
-        headers: { 'x-happi-key': apiKey }
+        headers: { 'x-happi-key': apiKey },
+        timeout: 5000 // 5 second timeout
       });
       
       response.basicTest = {
