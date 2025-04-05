@@ -77,9 +77,30 @@ module.exports = async (req, res) => {
       console.log('[lyrics] No HAPPI_API_KEY in env, using fallback test key');
     }
     
-    // If still no key, return fallback lyrics
+    // If still no key, try direct lyrics first before fallback
     if (!apiKey) {
       console.error('[lyrics] No Happi.dev API key found or fallback available');
+      
+      // Try using direct lyrics as a backup
+      try {
+        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
+        console.log(`[lyrics] Trying direct lyrics at: ${directLyricsUrl}`);
+        
+        const axios = require('axios');
+        const directResponse = await axios.get(directLyricsUrl, {
+          params: { title, artist },
+          timeout: 3000
+        });
+        
+        if (directResponse.data && directResponse.data.lyrics) {
+          console.log('[lyrics] Using direct lyrics as fallback');
+          return res.status(200).json(directResponse.data);
+        }
+      } catch (directError) {
+        console.error('[lyrics] Direct lyrics fallback failed:', directError.message);
+      }
+      
+      // If direct lyrics failed, return standard fallback
       return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
     }
     
