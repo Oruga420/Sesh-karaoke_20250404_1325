@@ -12,9 +12,11 @@ module.exports = (req, res) => {
   }
   
   // Get the request parameters
-  const { title = 'Unknown Song', artist = 'Unknown Artist' } = req.query;
+  const title = req.query.title || 'Unknown Song';
+  const artist = req.query.artist || 'Unknown Artist';
   
   console.log(`[direct-lyrics] Request for "${title}" by "${artist}"`);
+  console.log(`[direct-lyrics] Query params:`, req.query);
   
   // Demo song - return special lyrics
   if (title === 'Demo Song' && artist === 'Demo Artist') {
