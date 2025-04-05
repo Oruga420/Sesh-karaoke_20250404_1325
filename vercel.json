@@ -13,12 +13,7 @@
     { "source": "/callback", "destination": "/api/callback.js" },
     { "source": "/health", "destination": "/api/health.js" },
     { "source": "/debug", "destination": "/api/debug.js" },
-    { "source": "/happi-test", "destination": "/api/happi-test.js" },
-    { "source": "/test-happi", "destination": "/api/test-happi.js" },
-    { "source": "/key-test", "destination": "/api/key-test.js" },
     { "source": "/refresh-token", "destination": "/api/refresh-token.js" },
-    { "source": "/direct-lyrics", "destination": "/api/direct-lyrics.js" },
-    { "source": "/direct-lyrics-test", "destination": "/api/direct-lyrics-test.js" },
     { "source": "/fixed-lyrics", "destination": "/api/fixed-lyrics.js" },
     { "source": "/lyrics", "destination": "/api/fixed-lyrics.js" },
     { "source": "/(.*)", "destination": "/index.html" }
