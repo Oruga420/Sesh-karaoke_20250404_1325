@@ -44,8 +44,9 @@ module.exports = async (req, res) => {
     }
     
     // Get Happi.dev API key
-    const apiKey = process.env.HAPPI_API_KEY;
+    let apiKey = process.env.HAPPI_API_KEY;
     
+    // Debug output
     if (DEBUG) {
       console.log('[lyrics] HAPPI_API_KEY found:', !!apiKey);
       console.log('[lyrics] HAPPI_API_KEY length:', apiKey ? apiKey.length : 0);
@@ -54,8 +55,22 @@ module.exports = async (req, res) => {
       }
     }
     
+    // Check direct query string override for testing (NEVER use in production)
+    if (req.query.testApiKey && req.query.testApiKey === 'true') {
+      apiKey = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
+      console.log('[lyrics] Using test API key from query string');
+    }
+    
+    // Fallback for testing
     if (!apiKey) {
-      console.error('[lyrics] No Happi.dev API key found');
+      // Try a hardcoded key for testing - remove in production!
+      apiKey = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
+      console.log('[lyrics] No HAPPI_API_KEY in env, using fallback test key');
+    }
+    
+    // If still no key, return fallback lyrics
+    if (!apiKey) {
+      console.error('[lyrics] No Happi.dev API key found or fallback available');
       return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
     }
     
