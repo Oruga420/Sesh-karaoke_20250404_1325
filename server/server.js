@@ -581,19 +581,46 @@ try {
   console.error(`Error checking Python installation: ${e.message}`);
 }
 
-// Route to fetch lyrics using Python script - FIXED FOR DIRECT ACCESS
+// Route to fetch lyrics: try lrclib (real synced timestamps) first,
+// then external sources, then fall back to Python script.
 app.get('/api/lyrics', async (req, res) => {
   try {
-    const { title, artist } = req.query;
-    
-    console.log(`[API] Received request for lyrics: title=${title}, artist=${artist}`);
-    
+    const { title, artist, album, duration } = req.query;
+
+    console.log(`[API] Received request for lyrics: title=${title}, artist=${artist}, duration=${duration}`);
+
     if (!title || !artist) {
       console.log('[API] Missing title or artist');
       return res.status(400).json({ error: 'Title and artist are required' });
     }
-    
-    // Use the Python script to fetch lyrics
+
+    // 1. Try lrclib first — only it gives REAL synced timestamps that match the song.
+    try {
+      const lrc = await fetchLyricsFromLrcLib(artist, title, album, duration);
+      if (lrc && lrc.synced && lrc.synced.length > 0) {
+        console.log(`[API] Returning lrclib lyrics with ${lrc.synced.length} synced lines`);
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Cache-Control', 'no-cache');
+        return res.json({ lyrics: lrc });
+      }
+    } catch (lrcError) {
+      console.error('[API] lrclib lookup failed:', lrcError.message);
+    }
+
+    // 2. Try other external sources (musixmatch / genius — pseudo-synced).
+    try {
+      const external = await fetchLyricsFromExternal(title, artist);
+      if (external && external.synced && external.synced.length > 0) {
+        console.log(`[API] Returning external (${external.source}) lyrics with ${external.synced.length} lines`);
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Cache-Control', 'no-cache');
+        return res.json({ lyrics: external });
+      }
+    } catch (extError) {
+      console.error('[API] External lookup failed:', extError.message);
+    }
+
+    // 3. Fall back to Python script (legacy path).
     try {
       console.log(`[API] Attempting to fetch lyrics using Python script for "${title}" by "${artist}"`);
       

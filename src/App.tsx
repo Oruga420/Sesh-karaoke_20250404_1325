@@ -60,6 +60,10 @@ function App() {
   
   // Store the highest line reached so far to prevent jumping back
   const highestLineRef = useRef<number>(0);
+
+  // Track which track id we're currently fetching/displaying lyrics for.
+  // Used to discard stale lyrics responses when the user switches tracks fast.
+  const activeTrackIdRef = useRef<string | null>(null);
   
   // Handle authentication - FIXED VERSION
   useEffect(() => {
@@ -103,156 +107,145 @@ function App() {
     setLoading(false);
   }, []);
   
-  // Get current playing track
+  // Get current playing track.
+  // NOTE: deps are [token] only. Including currentTrack here causes the effect to
+  // tear down and re-run on every poll, which resets lastTrackId and triggers a
+  // fresh fetchLyrics call ~once per second (lrclib rate-limit risk).
   useEffect(() => {
     if (!token) return;
-    
+
+    // Latest values captured by the local-progress interval. Updated on every poll
+    // so the closure doesn't read a stale snapshot from the moment the track started.
     let lastTrackId = '';
-    let progressInterval: NodeJS.Timeout | null = null;
-    let lastUpdateTime = 0;
-    
+    let baseProgressMs = 0;
+    let baseTimestamp = 0;
+    let isPlayingNow = false;
+
+    const progressInterval = setInterval(() => {
+      if (isPlayingNow) {
+        const elapsed = Date.now() - baseTimestamp;
+        setTrackProgress(baseProgressMs + elapsed);
+      }
+    }, 100);
+
     const getCurrentTrack = () => {
       spotify.getMyCurrentPlayingTrack().then((response: any) => {
         if (response && response.item) {
-          // Check if this is a new track
           const currentTrackId = response.item.id;
           const isNewTrack = currentTrackId !== lastTrackId;
-          
-          // Update current track info
+
           setCurrentTrack(response.item as SpotifyTrack);
           setIsPlaying(response.is_playing || false);
           setTrackProgress(response.progress_ms || 0);
-          
-          // Update last track ID and fetch time
+
+          // Refresh closure variables read by the local-progress interval
+          baseProgressMs = response.progress_ms || 0;
+          baseTimestamp = Date.now();
+          isPlayingNow = !!response.is_playing;
           lastTrackId = currentTrackId;
-          lastUpdateTime = Date.now();
-          
-          // If this is a new track, fetch lyrics and reset lyric position
+
           if (isNewTrack) {
             console.log('New track detected: ' + response.item.name);
-            // Reset the highest line reference for the new track
             highestLineRef.current = 0;
             setCurrentLine(0);
             setCurrentWord(0);
-            
-            // Get the first artist's name
-            const artistName = response.item.artists && response.item.artists.length > 0 
-              ? response.item.artists[0].name 
+
+            const artistName = response.item.artists && response.item.artists.length > 0
+              ? response.item.artists[0].name
               : 'Unknown Artist';
-              
-            fetchLyrics(response.item.name, artistName);
-            
-            // Clear previous interval if it exists
-            if (progressInterval) {
-              clearInterval(progressInterval);
-            }
-            
-            // Set up a more frequent local progress tracking for smoother updates
-            progressInterval = setInterval(() => {
-              if (response.is_playing) {
-                const elapsed = Date.now() - lastUpdateTime;
-                const currentProgress = response.progress_ms || 0; // Handle null case
-                const estimatedProgress = currentProgress + elapsed;
-                setTrackProgress(estimatedProgress);
-              }
-            }, 100);
+            const albumName = response.item.album?.name || '';
+            const durationMs = response.item.duration_ms || 0;
+
+            // Mark this track as the active fetch target so older in-flight
+            // responses are discarded when they resolve.
+            activeTrackIdRef.current = currentTrackId;
+
+            fetchLyrics(response.item.name, artistName, albumName, durationMs, currentTrackId);
           }
         } else {
-          // No track is playing
           setIsPlaying(false);
-          
-          // Clear progress interval if it exists
-          if (progressInterval) {
-            clearInterval(progressInterval);
-            progressInterval = null;
-          }
+          isPlayingNow = false;
         }
       }).catch(error => {
         console.error('Error getting current track:', error);
-        
-        // Clear current track on error to show default UI
         setCurrentTrack(null);
         setIsPlaying(false);
-        
-        // Clear progress interval if it exists
-        if (progressInterval) {
-          clearInterval(progressInterval);
-          progressInterval = null;
-        }
+        isPlayingNow = false;
       });
     };
-    
-    // Initial check
+
     getCurrentTrack();
-    
-    // Update from Spotify API every second
     const spotifyCheckInterval = setInterval(getCurrentTrack, 1000);
-    
-    // Cleanup
+
     return () => {
       clearInterval(spotifyCheckInterval);
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
+      clearInterval(progressInterval);
     };
-  }, [token, currentTrack]);
+  }, [token]);
   
-  // Fetch lyrics from API
-  const fetchLyrics = async (title: string, artist: string) => {
+  // Fetch lyrics from API.
+  // expectedTrackId guards against race conditions: if the user changes track while
+  // an older request is still in flight, the late response is discarded.
+  const fetchLyrics = async (
+    title: string,
+    artist: string,
+    album: string = '',
+    durationMs: number = 0,
+    expectedTrackId: string = ''
+  ) => {
     try {
-      console.log(`Fetching lyrics for ${title} by ${artist}`);
-      
-      // For real songs, try to get lyrics from the API
-      console.log('Attempting to fetch lyrics from API...');
-      
-      // Determine API URL - use window location origin if nothing specified
+      console.log(`Fetching lyrics for ${title} by ${artist} (album=${album}, duration=${durationMs}ms)`);
+
       const apiBaseUrl = process.env.REACT_APP_API_URL || window.location.origin;
-      const apiUrl = `${apiBaseUrl}/api/lyrics?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
-      
+      const params = new URLSearchParams({ title, artist });
+      if (album) params.append('album', album);
+      if (durationMs > 0) params.append('duration', String(durationMs));
+      const apiUrl = `${apiBaseUrl}/api/lyrics?${params.toString()}`;
+
       console.log(`Making API request to: ${apiUrl}`);
       const response = await axios.get(apiUrl, { timeout: 10000 });
-      
-      console.log('API response:', response.data);
-      
+
+      // Discard if a newer track is now active
+      if (expectedTrackId && activeTrackIdRef.current !== expectedTrackId) {
+        console.log(`Discarding stale lyrics for "${title}" (active track changed)`);
+        return;
+      }
+
       if (response.data && response.data.lyrics) {
         const lyricsData = response.data.lyrics;
         console.log(`Got lyrics from API with ${lyricsData.synced?.length || 0} synced lines`);
-        
-        // Set the lyrics text
+
         setLyrics(lyricsData.text);
-        
-        // Format the synced lyrics for display
+
         const formattedLyrics = lyricsData.synced.map((line: any) => {
           return line.words.map((word: string) => ({
             word: word,
-            timestamp: line.time
+            timestamp: line.time,
           }));
         });
-        
-        console.log(`Processed ${formattedLyrics.length} lines of synced lyrics`);
+
         setSyncedLyrics(formattedLyrics);
         setCurrentLine(0);
         setCurrentWord(0);
         return;
-      } else {
-        throw new Error('Invalid API response format');
       }
-      
+      throw new Error('Invalid API response format');
     } catch (error) {
       console.error('Error in lyrics handling:', error);
-      
-      // FALLBACK: Generate super simple lyrics if even the direct method fails
+
+      // Don't overwrite newer track's lyrics with this stale failure either
+      if (expectedTrackId && activeTrackIdRef.current !== expectedTrackId) {
+        return;
+      }
+
       const fallbackLyrics = `${title}\nBy ${artist}\n\nLyrics Unavailable`;
-      
       setLyrics(fallbackLyrics);
-      
-      // Create minimal timed lyrics
+
       const syncedLines = [
         [{ word: title, timestamp: 0 }],
-        [{ word: "By", timestamp: 3 }, { word: artist, timestamp: 3 }],
-        [{ word: "Lyrics", timestamp: 6 }, { word: "Unavailable", timestamp: 6 }]
+        [{ word: 'By', timestamp: 3 }, { word: artist, timestamp: 3 }],
+        [{ word: 'Lyrics', timestamp: 6 }, { word: 'Unavailable', timestamp: 6 }],
       ];
-      
       setSyncedLyrics(syncedLines);
       setCurrentLine(0);
       setCurrentWord(0);
@@ -359,12 +352,15 @@ function App() {
                 trackProgress={trackProgress}
               />
               
-              {/* Lyrics with synchronized highlighting */}
-              <Lyrics 
-                syncedLyrics={syncedLyrics} 
+              {/* Manual sync nudge — useful when audio output (Bluetooth/car) adds latency */}
+              <SyncControls onSyncAdjust={setSyncAdjustment} />
+
+              {/* Lyrics with synchronized highlighting (apply user offset) */}
+              <Lyrics
+                syncedLyrics={syncedLyrics}
                 currentLine={currentLine}
                 currentWord={currentWord}
-                progress={trackProgress}
+                progress={trackProgress + syncAdjustment}
                 duration={currentTrack?.duration_ms || 0}
                 paused={!isPlaying}
               />

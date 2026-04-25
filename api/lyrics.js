@@ -1,335 +1,236 @@
-// Clean lyrics API implementation using Happi.dev
+// Lyrics API: prefers lrclib.net (real synced LRC timestamps),
+// falls back to Happi.dev plain text only if no synced lyrics are found.
 const axios = require('axios');
+const { parseLrc } = require('./lrcParser');
 
-// Happi.dev API base URL
+const LRCLIB_BASE = 'https://lrclib.net/api';
 const HAPPI_API_BASE = 'https://api.happi.dev/v1/music';
 
-// Debug mode
 const DEBUG = true;
 
-// Hard-coded test API key (for development only)
-const TEST_API_KEY = "hk205-bmv8eRuDe1gzEEgGeErKZj3ETvMZke9VBV";
-
-// Simple in-memory cache to reduce API calls
+// In-memory cache (per serverless instance)
 const cache = new Map();
-const CACHE_TTL = 3600000; // 1 hour in milliseconds
+const CACHE_TTL = 3600000; // 1 hour
 
 module.exports = async (req, res) => {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Handle preflight requests
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
+
+  const { title = '', artist = '', album = '', duration = '' } = req.query;
+
+  if (!title || !artist) {
+    return res.status(400).json({
+      error: 'Missing parameters',
+      message: 'Both title and artist parameters are required',
+    });
+  }
+
+  if (DEBUG) {
+    console.log(`[lyrics] Request: "${title}" by "${artist}" (album="${album}", duration=${duration})`);
+  }
+
+  // Cache key includes duration so different recordings of the same title don't collide
+  const cacheKey = `${title}::${artist}::${duration}`.toLowerCase();
+  if (cache.has(cacheKey)) {
+    if (DEBUG) console.log(`[lyrics] Cache hit: ${cacheKey}`);
+    return res.status(200).json({ lyrics: cache.get(cacheKey) });
+  }
+
   try {
-    // Get request parameters
-    const { title = '', artist = '' } = req.query;
-    
-    if (!title || !artist) {
-      return res.status(400).json({ 
-        error: 'Missing parameters',
-        message: 'Both title and artist parameters are required' 
-      });
+    // 1. Try lrclib (real synced LRC) — this is what makes timing actually match the song
+    const lrcResult = await fetchFromLrcLib({ title, artist, album, duration });
+    if (lrcResult && lrcResult.synced && lrcResult.synced.length > 0) {
+      cacheAndReturn(res, cacheKey, lrcResult);
+      return;
     }
-    
-    console.log(`[lyrics] Request for: "${title}" by "${artist}"`);
-    
-    // Check cache first
-    const cacheKey = `${title}:${artist}`.toLowerCase();
-    if (cache.has(cacheKey)) {
-      console.log(`[lyrics] Cache hit for: "${title}" by "${artist}"`);
-      return res.status(200).json({ lyrics: cache.get(cacheKey) });
-    }
-    
-    // Get Happi.dev API key
-    let apiKey = process.env.HAPPI_API_KEY;
-    
-    // Debug output
-    if (DEBUG) {
-      console.log('[lyrics] HAPPI_API_KEY found:', !!apiKey);
-      console.log('[lyrics] HAPPI_API_KEY length:', apiKey ? apiKey.length : 0);
-      if (apiKey) {
-        console.log('[lyrics] HAPPI_API_KEY preview:', `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 3)}`);
-      }
-    }
-    
-    // Check direct query string override for testing (NEVER use in production)
-    if (req.query.testApiKey && req.query.testApiKey === 'true') {
-      apiKey = TEST_API_KEY;
-      console.log('[lyrics] Using test API key from query string');
-    }
-    
-    // Force test mode if explicitly requested
-    if (req.query.forceTest === 'true') {
-      console.log('[lyrics] Force test mode enabled, ignoring environment API key');
-      apiKey = TEST_API_KEY;
-    }
-    
-    // Fallback for testing
-    if (!apiKey) {
-      // Try a hardcoded key for testing - remove in production!
-      apiKey = TEST_API_KEY;
-      console.log('[lyrics] No HAPPI_API_KEY in env, using fallback test key');
-    }
-    
-    // If still no key, try direct lyrics first before fallback
-    if (!apiKey) {
-      console.error('[lyrics] No Happi.dev API key found or fallback available');
-      
-      // Try using direct lyrics as a backup
+
+    // 2. Fall back to Happi (plain text only — timing is ESTIMATED, not real)
+    const happiKey = process.env.HAPPI_API_KEY;
+    if (happiKey) {
       try {
-        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
-        console.log(`[lyrics] Trying direct lyrics at: ${directLyricsUrl}`);
-        
-        const axios = require('axios');
-        const directResponse = await axios.get(directLyricsUrl, {
-          params: { title, artist },
-          timeout: 3000
-        });
-        
-        if (directResponse.data && directResponse.data.lyrics) {
-          console.log('[lyrics] Using direct lyrics as fallback');
-          return res.status(200).json(directResponse.data);
+        const happiResult = await getLyricsFromHappi(title, artist, happiKey);
+        if (happiResult && happiResult.synced && happiResult.synced.length > 0) {
+          cacheAndReturn(res, cacheKey, happiResult);
+          return;
         }
-      } catch (directError) {
-        console.error('[lyrics] Direct lyrics fallback failed:', directError.message);
+      } catch (happiError) {
+        console.error(`[lyrics] Happi fallback failed: ${happiError.message}`);
       }
-      
-      // If direct lyrics failed, return standard fallback
-      return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
+    } else if (DEBUG) {
+      console.log('[lyrics] No HAPPI_API_KEY configured, skipping Happi fallback');
     }
-    
-    // Should we use direct lyrics?
-    const useDirectLyrics = req.query.direct === 'true';
-    
-    // If direct lyrics requested, bypass Happi API
-    if (useDirectLyrics) {
-      console.log('[lyrics] Direct lyrics requested, bypassing Happi API');
-      try {
-        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
-        console.log(`[lyrics] Getting direct lyrics from: ${directLyricsUrl}`);
-        
-        const directResponse = await axios.get(directLyricsUrl, {
-          params: { title, artist },
-          timeout: 3000
-        });
-        
-        if (directResponse.data && directResponse.data.lyrics) {
-          console.log('[lyrics] Using direct lyrics');
-          return res.status(200).json(directResponse.data);
-        }
-      } catch (directError) {
-        console.error('[lyrics] Direct lyrics failed:', directError.message);
-      }
-    }
-    
-    // Search for the song using Happi API
-    try {
-      // Test the API key first with a simple request if debug mode enabled
-      if (DEBUG && req.query.debug === 'true') {
-        console.log('[lyrics] Testing API key before full lyrics request...');
-        try {
-          const testResponse = await axios.get(`${HAPPI_API_BASE}/artists/drake`, {
-            params: { apikey: apiKey },
-            headers: { 'x-happi-key': apiKey },
-            timeout: 3000
-          });
-          console.log('[lyrics] Test request successful:', testResponse.status);
-        } catch (testError) {
-          console.error('[lyrics] Test request failed:', testError.message);
-          if (testError.response) {
-            console.error('[lyrics] Test response:', testError.response.status, testError.response.data);
-          }
-          // Still proceed with the actual lyrics request
-        }
-      }
-      
-      const lyrics = await getLyricsFromHappi(title, artist, apiKey);
-      
-      // Cache the result
-      cache.set(cacheKey, lyrics);
-      setTimeout(() => cache.delete(cacheKey), CACHE_TTL);
-      
-      return res.status(200).json({ lyrics });
-    } catch (error) {
-      console.error(`[lyrics] Happi.dev API error: ${error.message}`);
-      
-      // Try using direct lyrics as a fallback
-      try {
-        console.log('[lyrics] Trying direct lyrics as fallback');
-        const directLyricsUrl = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || 'localhost'}/direct-lyrics`;
-        
-        const directResponse = await axios.get(directLyricsUrl, {
-          params: { title, artist },
-          timeout: 3000
-        });
-        
-        if (directResponse.data && directResponse.data.lyrics) {
-          console.log('[lyrics] Using direct lyrics as fallback');
-          return res.status(200).json(directResponse.data);
-        }
-      } catch (directError) {
-        console.error('[lyrics] Direct lyrics fallback failed:', directError.message);
-      }
-      
-      // Provide more detailed error information in debug mode
-      if (DEBUG && req.query.debug === 'true') {
-        const errorDetails = {
-          message: error.message,
-          stack: error.stack,
-          response: error.response ? {
-            status: error.response.status,
-            data: error.response.data
-          } : null
-        };
-        
-        return res.status(200).json({ 
-          lyrics: createFallbackLyrics(title, artist),
-          debug: errorDetails 
-        });
-      }
-      
-      return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
-    }
+
+    // 3. Final fallback: synthetic placeholder
+    return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
   } catch (error) {
     console.error(`[lyrics] Server error: ${error.message}`);
     return res.status(200).json({ lyrics: createFallbackLyrics(title, artist) });
   }
 };
 
-// Get lyrics from Happi.dev API
-async function getLyricsFromHappi(title, artist, apiKey) {
-  // Clean up title and artist
-  const cleanTitle = title.replace(/\(.*?\)/g, '').trim();
-  const cleanArtist = artist.replace(/\(.*?\)/g, '').trim();
-  
-  // Debug search request
-  if (DEBUG) {
-    console.log(`[lyrics] Searching for: "${cleanArtist} ${cleanTitle}" with Happi API`);
-    console.log(`[lyrics] Search URL: ${HAPPI_API_BASE}/search`);
-    console.log(`[lyrics] Using API key: ${apiKey.substring(0, 5)}...`);
-  }
-  
-  // Search for the song
-  const searchResponse = await axios.get(`${HAPPI_API_BASE}/search`, {
-    params: {
-      q: `${cleanArtist} ${cleanTitle}`,
-      limit: 5,
-      apikey: apiKey
-    },
-    headers: {
-      'x-happi-key': apiKey
+function cacheAndReturn(res, cacheKey, lyrics) {
+  cache.set(cacheKey, lyrics);
+  setTimeout(() => cache.delete(cacheKey), CACHE_TTL);
+  res.status(200).json({ lyrics });
+}
+
+// Fetch from lrclib.net — returns real synced LRC timestamps that match the recording
+async function fetchFromLrcLib({ title, artist, album, duration }) {
+  try {
+    const params = {
+      artist_name: artist,
+      track_name: title,
+    };
+    if (album) params.album_name = album;
+    // lrclib expects duration in seconds
+    if (duration) {
+      const durSec = Math.floor(Number(duration) / 1000);
+      if (Number.isFinite(durSec) && durSec > 0) params.duration = durSec;
     }
-  });
-  
-  // Debug search response
-  if (DEBUG) {
-    console.log(`[lyrics] Search response status: ${searchResponse.status}`);
-    console.log(`[lyrics] Search success: ${searchResponse.data.success}`);
-    console.log(`[lyrics] Found results: ${searchResponse.data.result ? searchResponse.data.result.length : 0}`);
-  }
-  
-  // Check if we found any results
-  if (!searchResponse.data.success || !searchResponse.data.result || searchResponse.data.result.length === 0) {
-    throw new Error('No results found');
-  }
-  
-  // Find the best match
-  const searchResults = searchResponse.data.result;
-  let bestMatch = null;
-  
-  // Try to find an exact match first
-  for (const result of searchResults) {
-    if (result.track.toLowerCase().includes(cleanTitle.toLowerCase()) && 
-        result.artist.toLowerCase().includes(cleanArtist.toLowerCase())) {
-      bestMatch = result;
-      break;
+
+    const url = `${LRCLIB_BASE}/get?${new URLSearchParams(params)}`;
+    if (DEBUG) console.log(`[lrclib] GET ${url}`);
+
+    const response = await axios.get(url, {
+      headers: { 'User-Agent': 'Spotify-Karaoke-App (https://github.com/Oruga420/Sesh-karaoke_20250404_1325)' },
+      timeout: 10000,
+      validateStatus: (status) => status === 200 || status === 404,
+    });
+
+    if (response.status === 404) {
+      // /get is exact match; try /search for fuzzy
+      return await searchLrcLib({ title, artist });
     }
+
+    return parseLrcLibResponse(response.data);
+  } catch (error) {
+    console.error(`[lrclib] Error: ${error.message}`);
+    return null;
   }
-  
-  // If no exact match, use the first result
-  if (!bestMatch && searchResults.length > 0) {
-    bestMatch = searchResults[0];
-  }
-  
-  if (!bestMatch) {
-    throw new Error('No suitable match found');
-  }
-  
-  // Get the lyrics
-  const lyricsResponse = await axios.get(bestMatch.api_lyrics, {
-    headers: {
-      'x-happi-key': apiKey
+}
+
+async function searchLrcLib({ title, artist }) {
+  try {
+    const params = new URLSearchParams({
+      track_name: title,
+      artist_name: artist,
+    });
+    const url = `${LRCLIB_BASE}/search?${params}`;
+    if (DEBUG) console.log(`[lrclib] Search ${url}`);
+
+    const response = await axios.get(url, {
+      headers: { 'User-Agent': 'Spotify-Karaoke-App' },
+      timeout: 10000,
+      validateStatus: (status) => status === 200 || status === 404,
+    });
+
+    if (response.status !== 200 || !Array.isArray(response.data) || response.data.length === 0) {
+      return null;
     }
-  });
-  
-  if (!lyricsResponse.data.success || !lyricsResponse.data.result) {
-    throw new Error('No lyrics found');
+
+    // Prefer the first result that has syncedLyrics
+    const withSynced = response.data.find((r) => r.syncedLyrics && r.syncedLyrics.length > 0);
+    const best = withSynced || response.data[0];
+    return parseLrcLibResponse(best);
+  } catch (error) {
+    console.error(`[lrclib] Search error: ${error.message}`);
+    return null;
   }
-  
-  const lyricsText = lyricsResponse.data.result.lyrics;
-  
-  // Create synced lyrics
+}
+
+function parseLrcLibResponse(data) {
+  if (!data) return null;
+  const synced = data.syncedLyrics ? parseLrc(data.syncedLyrics) : [];
+  const text = data.plainLyrics || synced.map((l) => l.words.join(' ')).join('\n');
+  if (synced.length === 0 && !text) return null;
+
   return {
-    text: lyricsText,
-    synced: createSyncedLyrics(lyricsText, title, artist),
-    source: 'happi-dev',
+    text,
+    synced,
+    source: 'lrclib.net',
     songInfo: {
-      title: bestMatch.track,
-      artist: bestMatch.artist,
-      album: bestMatch.album || 'Unknown Album'
-    }
+      title: data.trackName || '',
+      artist: data.artistName || '',
+      album: data.albumName || '',
+    },
   };
 }
 
-// Create synced lyrics from text
-function createSyncedLyrics(lyricsText, title, artist) {
-  // Split lyrics into lines
-  const lines = lyricsText.split('\n').filter(line => line.trim());
-  
-  // Create synced lyrics array
-  const synced = [];
-  
-  // Add title and artist as first lines
-  synced.push({ time: 0, words: [title] });
-  synced.push({ time: 3, words: ["By", artist] });
-  
-  // Add each line with timing
-  let currentTime = 6;
-  lines.forEach((line) => {
-    if (!line.trim()) return;
-    
-    const words = line.split(' ').filter(w => w.trim());
-    if (words.length > 0) {
-      synced.push({
-        time: currentTime,
-        words: words
-      });
-      
-      // Adjust timing based on line length
-      currentTime += Math.max(2, Math.min(4, words.length * 0.5));
-    }
+// Happi fallback (plain text → estimated timing — last resort only)
+async function getLyricsFromHappi(title, artist, apiKey) {
+  const cleanTitle = title.replace(/\(.*?\)/g, '').trim();
+  const cleanArtist = artist.replace(/\(.*?\)/g, '').trim();
+
+  const searchResponse = await axios.get(`${HAPPI_API_BASE}/search`, {
+    params: { q: `${cleanArtist} ${cleanTitle}`, limit: 5, apikey: apiKey },
+    headers: { 'x-happi-key': apiKey },
+    timeout: 5000,
   });
-  
+
+  if (!searchResponse.data.success || !searchResponse.data.result || searchResponse.data.result.length === 0) {
+    throw new Error('Happi: no results');
+  }
+
+  const results = searchResponse.data.result;
+  const exact = results.find(
+    (r) =>
+      r.track.toLowerCase().includes(cleanTitle.toLowerCase()) &&
+      r.artist.toLowerCase().includes(cleanArtist.toLowerCase())
+  );
+  const best = exact || results[0];
+
+  const lyricsResponse = await axios.get(best.api_lyrics, {
+    headers: { 'x-happi-key': apiKey },
+    timeout: 5000,
+  });
+
+  if (!lyricsResponse.data.success || !lyricsResponse.data.result) {
+    throw new Error('Happi: no lyrics body');
+  }
+
+  const lyricsText = lyricsResponse.data.result.lyrics;
+  return {
+    text: lyricsText,
+    synced: estimateSyncFromPlainText(lyricsText),
+    source: 'happi-dev (estimated timing)',
+    songInfo: {
+      title: best.track,
+      artist: best.artist,
+      album: best.album || 'Unknown Album',
+    },
+  };
+}
+
+// Estimate timing from plain text (NOT real sync — only used when no LRC source has the song)
+function estimateSyncFromPlainText(lyricsText) {
+  const lines = lyricsText.split('\n').filter((l) => l.trim());
+  const synced = [];
+  let currentTime = 6; // small intro buffer
+
+  for (const line of lines) {
+    const words = line.split(/\s+/).filter((w) => w.trim());
+    if (words.length === 0) continue;
+    synced.push({ time: currentTime, words });
+    currentTime += Math.max(2, Math.min(4, words.length * 0.5));
+  }
   return synced;
 }
 
-// Create fallback lyrics when API fails
 function createFallbackLyrics(title, artist) {
   return {
-    text: `${title}\nBy ${artist}\n\nLyrics unavailable\nPlease check your Happi.dev API key\nor try again later`,
+    text: `${title}\nBy ${artist}\n\nLyrics unavailable\nNo synced lyrics found on lrclib.net`,
     synced: [
       { time: 0, words: [title] },
-      { time: 3, words: ["By", artist] },
-      { time: 6, words: ["Lyrics", "unavailable"] },
-      { time: 9, words: ["Please", "check", "your", "Happi.dev", "API", "key"] },
-      { time: 12, words: ["or", "try", "again", "later"] }
+      { time: 3, words: ['By', artist] },
+      { time: 6, words: ['Lyrics', 'unavailable'] },
+      { time: 9, words: ['No', 'synced', 'lyrics', 'found'] },
     ],
-    source: 'fallback'
+    source: 'fallback',
   };
 }
