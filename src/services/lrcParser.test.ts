@@ -1,5 +1,6 @@
 // Tests for the LRC parser used by api/lyrics.js.
 // Placed under src/ so CRA's Jest picks it up via `npm test`.
+export {};
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { parseLrc } = require('../../api/lrcParser');
