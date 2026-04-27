@@ -38,8 +38,8 @@ Set these environment variables in your Vercel project settings:
 ### Required Variables
 ```
 REACT_APP_SPOTIFY_CLIENT_ID=your_spotify_client_id
-REACT_APP_REDIRECT_URI=https://your-domain.vercel.app/callback
-REACT_APP_API_URL=https://your-domain.vercel.app
+REACT_APP_REDIRECT_URI=https://sesh-karaoke.vercel.app/callback
+REACT_APP_API_URL=
 ```
 
 ### Optional Variables (if using lyrics APIs)
@@ -53,7 +53,8 @@ MUSIXMATCH_API_KEY=your_musixmatch_api_key
 1. Update your Spotify API settings:
    - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/)
    - Select your application
-   - Add `https://your-domain.vercel.app/callback` to the Redirect URIs
+   - Add `https://sesh-karaoke.vercel.app/callback` to the Redirect URIs
+   - Keep the URI exactly the same, including `https` and `/callback`
 
 2. Test the application by:
    - Navigating to your deployed URL

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { startSpotifyLogin, getRedirectUri } from '../spotify';
 import './Login.css';
 
@@ -6,7 +6,7 @@ function Login() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLoginClick = async () => {
+  const handleLoginClick = useCallback(async () => {
     setError(null);
     setIsLoggingIn(true);
     try {
@@ -17,7 +17,21 @@ function Login() {
       setError(e instanceof Error ? e.message : 'Login failed');
       setIsLoggingIn(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('spotify_login') !== '1') return;
+
+    params.delete('spotify_login');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+    );
+    void handleLoginClick();
+  }, [handleLoginClick]);
 
   return (
     <div className="login">

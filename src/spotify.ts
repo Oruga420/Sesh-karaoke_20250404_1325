@@ -6,8 +6,9 @@
 
 const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID || '3be3c1962cc44e2d820c6171d9debbf2';
 
-// Determine the redirect URI based on environment
-let redirectUri = process.env.REACT_APP_REDIRECT_URI;
+// Determine the redirect URI based on environment.
+const configuredRedirectUri = process.env.REACT_APP_REDIRECT_URI?.trim();
+let redirectUri = configuredRedirectUri;
 if (!redirectUri) {
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol;
@@ -26,6 +27,26 @@ if (!redirectUri) {
 console.log('Spotify redirect URI:', redirectUri);
 
 export const getRedirectUri = (): string => redirectUri as string;
+
+export const getRedirectOrigin = (): string | null => {
+  try {
+    return new URL(getRedirectUri()).origin;
+  } catch (e) {
+    console.error('Invalid Spotify redirect URI:', getRedirectUri(), e);
+    return null;
+  }
+};
+
+export const getCanonicalLoginUrl = (): string | null => {
+  if (!configuredRedirectUri || typeof window === 'undefined') return null;
+
+  const redirectOrigin = getRedirectOrigin();
+  if (!redirectOrigin || redirectOrigin === window.location.origin) return null;
+
+  const loginUrl = new URL('/', redirectOrigin);
+  loginUrl.searchParams.set('spotify_login', '1');
+  return loginUrl.toString();
+};
 
 const scopes = [
   'user-read-currently-playing',
@@ -60,6 +81,12 @@ function base64urlEncode(buf: ArrayBuffer): string {
  * verifier in sessionStorage, then redirects to Spotify's authorize endpoint.
  */
 export async function startSpotifyLogin(): Promise<void> {
+  const canonicalLoginUrl = getCanonicalLoginUrl();
+  if (canonicalLoginUrl) {
+    window.location.assign(canonicalLoginUrl);
+    return;
+  }
+
   const verifier = generateCodeVerifier();
   const challenge = base64urlEncode(await sha256(verifier));
   sessionStorage.setItem(VERIFIER_KEY, verifier);

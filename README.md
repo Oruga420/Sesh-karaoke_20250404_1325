@@ -28,28 +28,26 @@ A karaoke application that syncs with your Spotify account to display synchroniz
    The app uses the following environment variables:
    ```
    REACT_APP_SPOTIFY_CLIENT_ID=your_spotify_client_id
-   REACT_APP_SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-   REACT_APP_REDIRECT_URI=http://localhost:8888/callback
+   REACT_APP_REDIRECT_URI=http://localhost:3000/callback
    REACT_APP_API_URL=http://localhost:3001
    ```
 
 ## Running the Application Locally
 
-### Important: You need to start ALL three services!
+### Important: You need to start the frontend and API services
 
-The application consists of three parts that need to be running simultaneously:
+The application consists of two active parts during local development:
 
 1. **Frontend React App** (port 3000)
-2. **Redirect Server** (port 8888) - Handles Spotify OAuth callbacks
-3. **Lyrics API Server** (port 3001) - Provides lyrics data
+2. **Lyrics API Server** (port 3001) - Provides lyrics data
 
-### Option 1: Start all services at once (recommended)
+### Option 1: Start services at once (recommended)
 
 ```
 npm run start-all
 ```
 
-This will start all three services concurrently.
+This will start the app services concurrently.
 
 ### Option 2: Start each service individually
 
@@ -59,10 +57,7 @@ In separate terminal windows:
 # Terminal 1: Start the React frontend
 npm start
 
-# Terminal 2: Start the redirect server
-npm run start-redirect
-
-# Terminal 3: Start the API server
+# Terminal 2: Start the API server
 npm run start-api
 ```
 
@@ -74,8 +69,7 @@ This project is configured for easy deployment to Vercel:
 2. Connect your GitHub repository to Vercel
 3. Configure the following environment variables in Vercel:
    - `REACT_APP_SPOTIFY_CLIENT_ID` - Your Spotify Client ID
-   - `REACT_APP_SPOTIFY_CLIENT_SECRET` - Your Spotify Client Secret
-   - `REACT_APP_REDIRECT_URI` - Your deployed URL + "/callback"
+   - `REACT_APP_REDIRECT_URI` - `https://sesh-karaoke.vercel.app/callback`
 
 The project includes a `vercel.json` configuration file to ensure proper routing and serverless function setup.
 
@@ -92,14 +86,13 @@ If you see a black screen or are having other issues:
    node check-build.js
    ```
 
-2. Make sure all three servers are running when developing locally:
+2. Make sure both services are running when developing locally:
    - Frontend on port 3000
-   - Redirect server on port 8888 
    - API server on port 3001
 
 3. Check if ports are already in use by other applications:
    ```
-   npx kill-port 3000 3001 8888
+   npx kill-port 3000 3001
    ```
 
 4. Try clearing your browser cache and local storage
