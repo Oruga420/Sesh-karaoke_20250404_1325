@@ -4,7 +4,7 @@
 // must now use Authorization Code with PKCE. PKCE removes the need for
 // a client_secret on the client side.
 
-const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID || '3be3c1962cc44e2d820c6171d9debbf2';
+const clientId = (process.env.REACT_APP_SPOTIFY_CLIENT_ID || '3be3c1962cc44e2d820c6171d9debbf2').trim();
 
 // Determine the redirect URI based on environment.
 const configuredRedirectUri = process.env.REACT_APP_REDIRECT_URI?.trim();
