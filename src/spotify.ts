@@ -1,43 +1,30 @@
-// Spotify authentication config
+// Spotify OAuth 2.0 — Authorization Code Flow with PKCE.
+//
+// Spotify deprecated the Implicit Grant Flow (response_type=token); browsers
+// must now use Authorization Code with PKCE. PKCE removes the need for
+// a client_secret on the client side.
 
-// Using credentials from environment variables
 const clientId = process.env.REACT_APP_SPOTIFY_CLIENT_ID || '3be3c1962cc44e2d820c6171d9debbf2';
-const clientSecret = process.env.REACT_APP_SPOTIFY_CLIENT_SECRET || 'dae664828eee4fe4bf73c1d52eebe63d';
 
 // Determine the redirect URI based on environment
 let redirectUri = process.env.REACT_APP_REDIRECT_URI;
 if (!redirectUri) {
-  // In browser environment, determine the URI based on current host
   if (typeof window !== 'undefined') {
-    // Always use the current origin for redirect, that way the callback will work 
-    // regardless of which Vercel URL is being used for this deployment
     const protocol = window.location.protocol;
     const host = window.location.host;
-    
-    // For Vercel deployments or production, use /api/callback path
-    // For local development, use /callback path
-    const callbackPath = window.location.hostname.includes('vercel.app') 
-      ? '/api/callback' 
-      : '/callback';
-    
-    redirectUri = `${protocol}//${host}${callbackPath}`;
-    
-    // Store the redirect URI in session storage to help with debugging
+    redirectUri = `${protocol}//${host}/callback`;
     try {
       sessionStorage.setItem('spotify_redirect_uri', redirectUri);
     } catch (e) {
       console.error('Failed to store redirect URI in session storage', e);
     }
   } else {
-    // Fallback for server-side rendering
-    redirectUri = 'http://localhost:8888/callback';
+    redirectUri = 'http://localhost:3000/callback';
   }
 }
 
-// Log the redirect URI for debugging
 console.log('Spotify redirect URI:', redirectUri);
 
-// Scopes define the access permissions we're asking from the user
 const scopes = [
   'user-read-currently-playing',
   'user-read-playback-state',
@@ -45,34 +32,90 @@ const scopes = [
   'user-top-read',
 ];
 
-// Generate the Spotify login URL
-export const loginUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join('%20')}&response_type=token&show_dialog=true`;
+const VERIFIER_KEY = 'spotify_pkce_verifier';
 
-// Extract the token from the URL after the user logs in
-export const getTokenFromUrl = (): any => {
-  // Handle when the URL doesn't have a hash
-  if (!window.location.hash) {
-    return {};
-  }
-  
-  try {
-    return window.location.hash
-      .substring(1)
-      .split('&')
-      .reduce((initial: any, item) => {
-        const parts = item.split('=');
-        if (parts.length === 2) {
-          initial[parts[0]] = decodeURIComponent(parts[1]);
-        }
-        return initial;
-      }, {});
-  } catch (error) {
-    console.error('Error parsing URL hash:', error);
-    return {};
-  }
-};
+// PKCE: random URL-safe string between 43–128 chars
+function generateCodeVerifier(): string {
+  const arr = new Uint8Array(64);
+  window.crypto.getRandomValues(arr);
+  return base64urlEncode(arr.buffer);
+}
 
-// Check if we're connected to the internet
-export const checkOnlineStatus = (): boolean => {
-  return navigator.onLine;
-};
+async function sha256(input: string): Promise<ArrayBuffer> {
+  const data = new TextEncoder().encode(input);
+  return window.crypto.subtle.digest('SHA-256', data);
+}
+
+function base64urlEncode(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let str = '';
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return window.btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Begin Spotify login. Generates a fresh PKCE verifier+challenge, stores the
+ * verifier in sessionStorage, then redirects to Spotify's authorize endpoint.
+ */
+export async function startSpotifyLogin(): Promise<void> {
+  const verifier = generateCodeVerifier();
+  const challenge = base64urlEncode(await sha256(verifier));
+  sessionStorage.setItem(VERIFIER_KEY, verifier);
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: redirectUri as string,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    scope: scopes.join(' '),
+    show_dialog: 'true',
+  });
+
+  window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+interface TokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+  token_type: string;
+  scope: string;
+}
+
+/**
+ * Exchange the authorization code from the callback URL for an access token.
+ * The PKCE verifier (saved before the redirect) authenticates the request —
+ * no client_secret needed.
+ */
+export async function exchangeCodeForToken(code: string): Promise<TokenResponse> {
+  const verifier = sessionStorage.getItem(VERIFIER_KEY);
+  if (!verifier) {
+    throw new Error('Missing PKCE verifier — login was not started from this browser tab');
+  }
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri as string,
+    code_verifier: verifier,
+  });
+
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Token exchange failed (${res.status}): ${errText}`);
+  }
+
+  // Verifier is single-use; clear after exchange (success or failure handled below)
+  sessionStorage.removeItem(VERIFIER_KEY);
+  return res.json();
+}
+
+export const checkOnlineStatus = (): boolean => navigator.onLine;

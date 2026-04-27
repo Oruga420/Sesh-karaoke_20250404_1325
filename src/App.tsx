@@ -7,7 +7,7 @@ import Player from './components/Player';
 import Lyrics from './components/Lyrics';
 import VisualizerView from './components/VisualizerView';
 import SyncControls from './components/SyncControls';
-import { getTokenFromUrl } from './spotify';
+import { exchangeCodeForToken } from './spotify';
 
 // Initialize Spotify Web API
 const spotify = new SpotifyWebApi();
@@ -65,46 +65,61 @@ function App() {
   // Used to discard stale lyrics responses when the user switches tracks fast.
   const activeTrackIdRef = useRef<string | null>(null);
   
-  // Handle authentication - FIXED VERSION
+  // Handle authentication: PKCE Authorization Code Flow.
+  // The /callback route handles the code exchange; here we just pick up the
+  // resulting token from localStorage. We also defensively handle ?code=...
+  // landing on the root in case the redirect URI is misconfigured.
   useEffect(() => {
-    // First check if token is in URL hash (redirected from Spotify)
-    const hashParams = getTokenFromUrl();
-    
-    if (hashParams && hashParams.access_token) {
-      const newToken = hashParams.access_token;
-      console.log("Token found in URL:", newToken.substring(0,10) + "...");
-      
-      // Save token to localStorage
-      localStorage.setItem("spotify_token", newToken);
-      setToken(newToken);
-      
-      // Set this token in the Spotify API wrapper
-      spotify.setAccessToken(newToken);
-      
-      // Clean the URL
-      window.location.hash = "";
-    } else {
-      // Check for token in localStorage (for returning users)
+    const handleAuth = async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get('code');
+      const authError = url.searchParams.get('error');
+
+      if (authError) {
+        console.error('Spotify auth error in URL:', authError);
+      }
+
+      if (code) {
+        try {
+          const tokenRes = await exchangeCodeForToken(code);
+          localStorage.setItem('spotify_token', tokenRes.access_token);
+          const expiresAt = Date.now() + tokenRes.expires_in * 1000;
+          localStorage.setItem('token_expiry', expiresAt.toString());
+          if (tokenRes.refresh_token) {
+            localStorage.setItem('spotify_refresh_token', tokenRes.refresh_token);
+          }
+          setToken(tokenRes.access_token);
+          spotify.setAccessToken(tokenRes.access_token);
+          window.history.replaceState({}, '', url.pathname);
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.error('Token exchange failed on root:', e);
+          // fall through to localStorage check
+        }
+      }
+
       const savedToken = localStorage.getItem('spotify_token');
-      if (savedToken) {
-        console.log("Found saved token:", savedToken.substring(0,10) + "...");
+      const savedExpiry = parseInt(localStorage.getItem('token_expiry') || '0', 10);
+      if (savedToken && (!savedExpiry || Date.now() < savedExpiry)) {
         setToken(savedToken);
         spotify.setAccessToken(savedToken);
-        
-        // Verify token is still valid
-        spotify.getMe()
-          .then(user => {
-            console.log('User:', user);
-          })
-          .catch(error => {
-            console.error('Token invalid:', error);
-            localStorage.removeItem('spotify_token');
-            setToken(null);
-          });
+        spotify.getMe().catch((error: any) => {
+          console.error('Token invalid:', error);
+          localStorage.removeItem('spotify_token');
+          localStorage.removeItem('token_expiry');
+          setToken(null);
+        });
+      } else if (savedToken) {
+        // Expired
+        localStorage.removeItem('spotify_token');
+        localStorage.removeItem('token_expiry');
       }
-    }
-    
-    setLoading(false);
+
+      setLoading(false);
+    };
+
+    handleAuth();
   }, []);
   
   // Get current playing track.

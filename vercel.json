@@ -10,7 +10,6 @@
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/callback", "destination": "/api/callback.js" },
     { "source": "/health", "destination": "/api/health.js" },
     { "source": "/debug", "destination": "/api/debug.js" },
     { "source": "/refresh-token", "destination": "/api/refresh-token.js" },
