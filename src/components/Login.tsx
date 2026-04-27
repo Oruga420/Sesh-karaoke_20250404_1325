@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { startSpotifyLogin } from '../spotify';
+import { startSpotifyLogin, getRedirectUri } from '../spotify';
 import './Login.css';
 
 function Login() {
@@ -50,6 +50,15 @@ function Login() {
         <p className="login__info">
           Log in with your Spotify account to see synchronized lyrics for the songs you're listening to.
         </p>
+
+        <details style={{ marginTop: 16, fontSize: 12, opacity: 0.7 }}>
+          <summary style={{ cursor: 'pointer' }}>Debug · redirect URI</summary>
+          <p style={{ wordBreak: 'break-all', marginTop: 8 }}>
+            This URI must be in your Spotify app's redirect allowlist:
+            <br />
+            <code>{getRedirectUri()}</code>
+          </p>
+        </details>
       </div>
     </div>
   );

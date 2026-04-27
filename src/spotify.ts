@@ -25,6 +25,8 @@ if (!redirectUri) {
 
 console.log('Spotify redirect URI:', redirectUri);
 
+export const getRedirectUri = (): string => redirectUri as string;
+
 const scopes = [
   'user-read-currently-playing',
   'user-read-playback-state',
