@@ -1,11 +1,21 @@
-.player { display: flex; align-items: flex-start; gap: var(--space-4); }
-.player--empty { display: grid; gap: var(--space-2); }
-.player__albumCover { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-control); flex-shrink: 0; }
-.player__info { min-width: 0; flex: 1; display: grid; gap: var(--space-3); }
-.player__track-info { display: grid; gap: var(--space-1); }
-.app .player__title { font-size: var(--type-section); }
-.player__artist, .player__album-name, .player__hint { font-size: var(--type-small); color: var(--muted); }
-.player__progress-container { display: grid; gap: var(--space-2); }
-.player__progress-bar { height: 4px; background: var(--edge); border-radius: var(--space-1); }
-.player__progress-fill { height: 100%; background: var(--stage); border-radius: inherit; }
-.player__time { display: flex; justify-content: space-between; gap: var(--space-2); font-variant-numeric: tabular-nums; font-size: var(--type-small); color: var(--muted); }
+.player { display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1 1 720px; max-width: 960px; }
+.player--empty { display: grid; gap: 4px; font-size: 13px; }
+.player__albumCover { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.player__info { min-width: 0; flex: 1; display: grid; grid-template-columns: minmax(100px, 1fr) minmax(160px, 1.5fr); gap: 24px; align-items: center; }
+.player__track-info { min-width: 0; display: grid; gap: 2px; }
+.app .player__title { font-size: 13px; letter-spacing: 0; }
+.player__title, .player__artist, .player__album-name { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.player__artist, .player__album-name, .player__hint { font-size: 11px; color: var(--muted); }
+.player__progress-container { display: grid; gap: 4px; }
+.player__progress-bar { height: 4px; background: #535353; border-radius: 4px; overflow: hidden; }
+.player__progress-fill { height: 100%; background: var(--cue); border-radius: inherit; }
+.player__time { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; font-size: 11px; color: var(--muted); }
+@media (max-width: 720px) {
+  .player { gap: 10px; }
+  .player__albumCover { width: 44px; height: 44px; }
+  .player__info { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .player__album-name, .player__progress-container > .player__hint { display: none; }
+  .player--empty .player__hint { display: none; }
+  .player__progress-container { gap: 2px; }
+  .player__time { font-size: 10px; }
+}

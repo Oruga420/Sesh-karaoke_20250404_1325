@@ -16,6 +16,7 @@ interface Props {
   tools?: React.ReactNode;
   onToggleWide?: () => void;
   wide?: boolean;
+  atmosphere?: React.ReactNode;
 }
 
 const lookupMessages: Record<string, string> = {
@@ -38,7 +39,7 @@ const fileMessages: Record<string, string> = {
 };
 
 function LyricsResultView({ view, progress, duration, paused, onRetry, onImport, onReturnToSearch,
-  reading = false, followsPlayback = false, tools, onToggleWide, wide = false }: Props) {
+  reading = false, followsPlayback = false, tools, onToggleWide, wide = false, atmosphere }: Props) {
   const [now, setNow] = useState(Date.now());
   const [fileError, setFileError] = useState('');
   const importGeneration = useRef(0);
@@ -84,12 +85,14 @@ function LyricsResultView({ view, progress, duration, paused, onRetry, onImport,
   }
   return <section className="lyrics-result" aria-label="Letras" data-testid="lyrics-result" data-state={state}>
     <div className="lyrics-result__stage">
+      {atmosphere}
       <div className="lyrics-result__heading"><h2>Letras</h2><span className="lyrics-result__badge">{statusLabel}</span></div>
       {recording && <div className="lyrics-result__recording"><h3>{recording.title}</h3><p>{recording.artist}</p></div>}
       {state === 'idle' && <div className="lyrics-result__empty">
         <span className="lyrics-result__cue" aria-hidden="true" />
-        <p className="lyrics-result__empty-title">Aquí va tu voz.</p>
-        <p className="lyrics-result__empty-copy">Busca una canción por título y artista para abrir sus letras y cantar.</p>
+        <span className="lyrics-result__eyebrow">EL ESCENARIO ES TUYO</span>
+        <p className="lyrics-result__empty-title">Tu música.<br />Tu voz.</p>
+        <p className="lyrics-result__empty-copy">Encuentra esa canción. Aprende cada línea. Cántala a tu manera.</p>
       </div>}
       <div role="status" aria-live="polite" aria-atomic="true" className="lyrics-result__message">
         {message && <p>{message}</p>}
@@ -109,7 +112,7 @@ function LyricsResultView({ view, progress, duration, paused, onRetry, onImport,
         {onToggleWide && <button type="button" onClick={onToggleWide} aria-pressed={wide}>{wide ? 'Vista normal' : 'Vista amplia'}</button>}
       </div>}
     </div>
-    <div className="lyrics-result__library">
+    <div id="song-library" className="lyrics-result__library">
       <h3>Tus letras, a mano</h3>
       {result && canExport ? <>
         <div className="lyrics-result__metadata">

@@ -1,6 +1,6 @@
 .login {
   min-width: 0;
-  color: var(--ink, #182b50);
+  color: var(--ink, #ffffff);
 }
 
 .app .login h2 {
@@ -10,7 +10,7 @@
 .login__info,
 .login__status,
 .login__help {
-  color: var(--muted, #455777);
+  color: var(--muted, #b3b3b3);
   font-size: var(--type-small, 14px);
   line-height: 1.5;
 }
@@ -31,9 +31,9 @@
 }
 
 .login__error {
-  border-left: 3px solid var(--error-ink, #8b2030);
+  border-left: 3px solid var(--error-ink, #ffb7be);
   padding-left: var(--space-3, 12px);
-  color: var(--error-ink, #8b2030);
+  color: var(--error-ink, #ffb7be);
   font-size: var(--type-small, 14px);
   overflow-wrap: anywhere;
 }

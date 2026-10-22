@@ -3,7 +3,7 @@
   width: 100%;
   min-width: 0;
   color: var(--stage-ink);
-  background: var(--stage);
+  background: transparent;
 }
 
 .lyrics--compact { --lyric-size: 32px; }
@@ -36,7 +36,7 @@
 .lyrics__plain {
   font-family: var(--font-reading);
   font-size: var(--lyric-size);
-  font-weight: 400;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: -.02em;
   overflow-wrap: anywhere;
