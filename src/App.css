@@ -1,39 +1,122 @@
-.app { width: 100%; min-height: 100vh; display: flex; justify-content: center; padding: 28px 20px; background: linear-gradient(to bottom, #145c31, #191414 540px); color: #f5f7f5; }
-.app *, .app *::before, .app *::after { box-sizing: border-box; }
-.app__main { width: 100%; max-width: 800px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
-.app__header h1 { margin: 0; font-size: 28px; color: #42df80; }
-.app__header p { color: #d3e1d5; }
-.app__connection { padding: 12px 16px; background: #2d301b; border: 1px solid #7b8242; border-radius: 8px; }
-.app__spotify-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.app .login { min-height: 0; padding: 0; background: transparent; }
-.app .login__container { width: 100%; max-width: none; padding: 20px; }
-.app .login__logo { width: 100px; margin-bottom: 8px; }
-.app .login__container h1 { font-size: 21px; }
-.app .login__info { margin-top: 10px; }
-.app .manual-search, .app .lyrics-result { min-width: 0; padding: 22px; border: 1px solid #363f38; border-radius: 12px; background: rgba(15, 18, 16, .94); }
-.app h2 { margin: 0 0 10px; font-size: 21px; }
-.app p { margin: 8px 0; line-height: 1.6; overflow-wrap: anywhere; }
-.app button { border: 0; border-radius: 24px; background: #1db954; color: #071c0e; padding: 11px 18px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; margin: 0; }
-.app button:hover { background: #38d66f; }
-.app button:disabled { background: #3d4941; color: #b3bcb5; cursor: wait; }
-.app button:focus-visible, .app input:focus-visible, .app a:focus-visible { outline: 3px solid #8af5af; outline-offset: 3px; }
-.app .secondary-button { background: #293a2f; color: #e2f3e7; border: 1px solid #46604f; }
-.manual-search__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
-.manual-search__fields label { display: flex; flex-direction: column; gap: 7px; font-size: 14px; min-width: 0; }
-.manual-search__fields input { width: 100%; border: 1px solid #56645a; color: white; background: #202822; padding: 12px; border-radius: 6px; font: inherit; }
-.lyrics-result__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.lyrics-result__heading h2 { margin: 0; }
-.lyrics-result__badge { padding: 5px 9px; border-radius: 12px; background: #213f2b; color: #b6efc8; font-size: 12px; }
-.lyrics-result__recording { color: #d5dfd7; }
-.lyrics-result__message { color: #d1d8d3; line-height: 1.6; margin: 14px 0; }
-.lyrics-result__metadata { font-size: 13px; color: #b4c1b8; margin-top: 16px; }
-.lyrics-result__metadata a { color: #6feb98; text-underline-offset: 3px; overflow-wrap: anywhere; }
-.lyrics-result__cache { color: #95a99b; }
-.lyrics-result__actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; margin-top: 18px; }
-.lyrics-result__import { display: flex; flex-direction: column; gap: 8px; width: 100%; color: #c2cec6; font-size: 14px; }
-.lyrics-result__import input { width: 100%; max-width: 100%; padding: 8px 0; color: #b4c1b8; }
-.lyrics-result [role="alert"] { color: #ffc6b8; }
-.loading-spinner { width: 32px; height: 32px; margin: 18px auto; border: 4px solid #555; border-top-color: #1db954; border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 600px) { .app { padding: 20px 12px; } .app .manual-search, .app .lyrics-result { padding: 16px; } .manual-search__fields { grid-template-columns: 1fr; } .app__header h1 { font-size: 25px; } }
-@media (prefers-reduced-motion: reduce) { .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+.app { min-height: 100vh; padding: var(--space-8) var(--space-10) var(--space-10); }
+.app__main { width: 100%; max-width: 1640px; margin-inline: auto; }
+.app__header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); margin-bottom: var(--space-8); }
+.app__identity { display: flex; align-items: baseline; gap: var(--space-4); }
+.app h1, .app h2, .app h3 { margin: 0; font-family: var(--font-reading); font-weight: 600; line-height: 1.2; text-wrap: balance; overflow-wrap: anywhere; }
+.app h1 { font-size: var(--type-brand); letter-spacing: -.02em; }
+.app h2 { font-size: var(--type-title); }
+.app h3 { font-size: var(--type-section); }
+.app p { margin: 0; max-width: 65ch; overflow-wrap: anywhere; }
+.app__identity p, .app__signature { font-size: var(--type-small); color: var(--muted); }
+.app__signature { display: flex; align-items: center; gap: var(--space-2); }
+.app__signature svg { width: 24px; height: 24px; }
+.app__workspace { display: grid; grid-template-columns: 320px minmax(0, 1fr); column-gap: var(--space-10); row-gap: var(--space-8); align-items: start; }
+.app__workspace > * { min-width: 0; }
+.app__search { grid-column: 1; grid-row: 1; }
+.app__reading { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+.app__reading:focus { outline: none; }
+.app__spotify { grid-column: 1; grid-row: 2; padding-top: var(--space-6); border-top: 1px solid var(--edge); }
+.app__spotify > h2 { font-size: var(--type-section); margin-bottom: var(--space-4); }
+.app__spotify-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.app__spotify-actions button { font-size: var(--type-small); }
+.app__connection { color: var(--ink); margin-bottom: var(--space-4) !important; }
+.app__visualizer { margin-top: var(--space-4); }
+.app--reading .app__workspace { grid-template-columns: minmax(0, 1fr); }
+.app--reading .app__reading { grid-column: 1; grid-row: 1; }
+.app--reading .app__spotify { grid-column: 1; grid-row: 2; }
+.app--wide .app__main { max-width: none; }
+.app--wide .lyrics-result__stage { min-height: calc(100svh - 160px); }
+.app--wide .lyrics__container { max-height: 70vh; }
+.app button { display: inline-flex; justify-content: center; align-items: center; gap: var(--space-2); min-height: 48px; max-width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font-weight: 600; line-height: 1.4; }
+.app button:active { background: var(--control-pressed); border-color: var(--ink); }
+.app button:disabled { color: var(--disabled-ink); background: var(--disabled-surface); border-color: var(--edge); cursor: not-allowed; }
+.app .primary-button { background: var(--cue); border-color: var(--cue); }
+.app .primary-button:active { background: var(--cue-pressed); border-color: var(--ink); }
+.app :is(button, input, select, summary, a):focus-visible, .app__reading:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.app input:not([type='file']):not([type='range']), .app select { width: 100%; min-height: 48px; padding: var(--space-3); border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); }
+.app input::placeholder { color: var(--muted); opacity: 1; }
+.app label { display: grid; gap: var(--space-2); min-width: 0; }
+.app summary { min-height: 44px; padding-block: var(--space-3); font-size: var(--type-small); color: var(--muted); }
+.app a { color: var(--stage); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.manual-search > p { margin-top: var(--space-3); color: var(--muted); }
+.manual-search__fields { display: grid; gap: var(--space-4); margin-top: var(--space-6); }
+.manual-search__fields label { font-weight: 600; }
+.manual-search__fields input { font-weight: 400; }
+.manual-search__album { margin-top: var(--space-3); }
+.manual-search__album label { margin-top: var(--space-2); }
+.app .manual-search__submit { width: 100%; margin-top: var(--space-4); gap: var(--space-3); }
+.manual-search__submit svg { width: 20px; height: 20px; flex-shrink: 0; }
+.manual-search .manual-search__hint { margin-top: var(--space-3); font-size: var(--type-small); color: var(--muted); }
+.lyrics-result__stage { min-height: 520px; padding: var(--space-6) var(--space-10); border-radius: var(--radius-reader); background: var(--stage); color: var(--stage-ink); display: flex; flex-direction: column; }
+.lyrics-result__stage :is(button, select) { background: var(--stage); color: var(--stage-ink); border-color: var(--stage-border); font-size: var(--type-small); }
+.lyrics-result__stage button:active { background: var(--stage-pressed); border-color: var(--stage-ink); }
+.lyrics-result__stage button:disabled { color: var(--stage-muted); background: var(--stage-disabled); border-color: var(--stage-border); }
+.lyrics-result__stage :is(button, input, select, summary, a):focus-visible { outline-color: var(--cue); }
+.lyrics-result__stage :is(a, summary) { color: var(--stage-muted); }
+.lyrics-result__heading { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.lyrics-result__heading h2 { font-size: var(--type-section); }
+.lyrics-result__badge { color: var(--stage-muted); font-size: var(--type-small); }
+.lyrics-result__recording { margin-top: var(--space-6); display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: baseline; }
+.lyrics-result__recording h3 { font-size: var(--type-title); }
+.lyrics-result__recording p { color: var(--stage-muted); font-size: var(--type-small); }
+.lyrics-result__message { color: var(--stage-muted); margin-top: var(--space-3); font-size: var(--type-small); }
+.lyrics-result__message:empty { display: none; }
+.lyrics-result__message p + p { margin-top: var(--space-2); }
+.lyrics-result__empty { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-block: var(--space-10); }
+.lyrics-result__cue { display: block; width: 48px; height: 8px; border-radius: var(--space-1); background: var(--cue); margin-bottom: var(--space-6); }
+.app .lyrics-result__empty-title { font: 600 44px/1.1 var(--font-reading); letter-spacing: -.025em; max-width: 18ch; text-wrap: balance; }
+.lyrics-result__empty-copy { color: var(--stage-muted); max-width: 43ch; margin-top: var(--space-4) !important; }
+.lyrics-result__timing { margin-top: var(--space-2) !important; color: var(--stage-muted); font-size: var(--type-small); }
+.lyrics-result__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.lyrics-result__reader-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--stage-border); }
+.lyrics-result__library { margin-top: var(--space-6); }
+.lyrics-result__library h3 { font-size: var(--type-section); margin-bottom: var(--space-2); }
+.lyrics-result__library p { font-size: var(--type-small); color: var(--muted); }
+.lyrics-result__library p + p { margin-top: var(--space-2); }
+.lyrics-result__provenance { margin-top: var(--space-4); }
+.lyrics-result__provenance p { margin-top: var(--space-2); }
+.lyrics-result__provenance summary, .lyrics-result__file-import summary { color: var(--ink); }
+.lyrics-result__provenance button { margin-top: var(--space-4); }
+.lyrics-result__file-import { margin-top: var(--space-2); }
+.lyrics-result__file-import label { padding-top: var(--space-3); font-size: var(--type-small); color: var(--ink); }
+.lyrics-result__file-import input { min-height: 44px; max-width: 100%; width: 100%; padding-block: var(--space-2); color: var(--ink); font-size: var(--type-small); }
+.lyrics-result__file-import input::file-selector-button { min-height: 44px; padding: var(--space-2) var(--space-3); margin-right: var(--space-2); border: 1px solid var(--edge); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; }
+.lyrics-result [role='alert'] { background: var(--error-surface); color: var(--error-ink); padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); margin-top: var(--space-3); }
+.skip-link { position: fixed; top: var(--space-4); left: var(--space-4); z-index: 10; transform: translateY(-180%); padding: var(--space-3) var(--space-4); background: var(--cue); color: var(--ink); border-radius: var(--radius-control); }
+.skip-link:focus { transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .app button:not(:disabled):hover { background: var(--control-hover); border-color: var(--ink); }
+  .app .primary-button:not(:disabled):hover { background: var(--cue-hover); }
+  .app .lyrics-result__stage button:not(:disabled):hover { background: var(--stage-hover); border-color: var(--stage-ink); }
+}
+@media (max-width: 1000px) {
+  .app { padding: var(--space-6); }
+  .app__workspace { grid-template-columns: 280px minmax(0, 1fr); column-gap: var(--space-6); }
+  .lyrics-result__stage { padding-inline: var(--space-6); }
+}
+@media (max-width: 720px) {
+  .app { padding: var(--space-6) var(--space-4) var(--space-8); }
+  .app__header { margin-bottom: var(--space-6); gap: var(--space-3); align-items: flex-start; }
+  .app__identity { display: block; }
+  .app__identity p { margin-top: var(--space-1); }
+  .app__signature { padding-top: var(--space-1); white-space: nowrap; }
+  .app__signature svg { display: none; }
+  .app__workspace { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-6); }
+  .app__search { grid-column: 1; grid-row: 1; }
+  .app__reading { grid-column: 1; grid-row: 2; }
+  .app__spotify { grid-column: 1; grid-row: 3; }
+  .app h2 { font-size: var(--type-section); }
+  .manual-search > p { margin-top: var(--space-2); font-size: var(--type-small); }
+  .manual-search__fields { gap: var(--space-3); margin-top: var(--space-4); }
+  .manual-search__fields label { gap: var(--space-1); }
+  .manual-search__album { margin-top: var(--space-1); }
+  .app .manual-search__submit { margin-top: var(--space-1); }
+  .lyrics-result__stage { min-height: 340px; padding: var(--space-6); }
+  .lyrics-result__empty { padding-block: var(--space-8); }
+  .lyrics-result__cue { width: 40px; margin-bottom: var(--space-4); }
+  .app .lyrics-result__empty-title { font-size: 32px; }
+  .lyrics-result__empty-copy { font-size: var(--type-small); }
+  .lyrics-result__recording { display: block; }
+  .lyrics-result__recording h3 { font-size: var(--type-section); }
+  .lyrics-result__recording p { margin-top: var(--space-2); }
+}

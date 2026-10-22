@@ -59,11 +59,38 @@ function observe(page, expectedHttpErrors = false) {
   });
   return observed;
 }
-async function search(page, title, artist = 'Fixture Ensemble') {
-  await page.getByLabel('Song title', { exact: true }).fill(title);
-  await page.getByLabel('Artist', { exact: true }).fill(artist);
-  await page.getByLabel('Album (optional)', { exact: true }).fill('');
-  await page.getByRole('button', { name: 'Find lyrics', exact: true }).click();
+async function returnToSearch(page, keyboard = false) {
+  const back = page.getByRole('button', { name: 'Buscar otra canción', exact: true });
+  if (keyboard) { await back.focus(); await page.keyboard.press('Enter'); }
+  else await back.click();
+  await page.locator('form[aria-label="Buscar letras"]').waitFor({ state: 'visible' });
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'lyrics-title', 'Returning to search did not restore title focus');
+}
+async function search(page, title, artist = 'Fixture Ensemble', album = '') {
+  const form = page.locator('form[aria-label="Buscar letras"]');
+  if (!await form.isVisible()) await returnToSearch(page);
+  await page.locator('#lyrics-title').fill(title);
+  await page.locator('#lyrics-artist').fill(artist);
+  const albumInput = page.locator('#lyrics-album');
+  if (await albumInput.inputValue() !== album) {
+    if (!await albumInput.isVisible()) await page.getByText('Añadir álbum, opcional', { exact: true }).click();
+    await albumInput.fill(album);
+  }
+  await page.getByRole('button', { name: 'Buscar letras', exact: true }).click();
+}
+async function reading(page) {
+  await page.getByRole('button', { name: 'Buscar otra canción', exact: true }).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#song-search').isVisible(), false, 'Finder remained visible during reading');
+  assert.equal(await page.locator('#lyrics-title').count(), 1, 'Reading discarded or duplicated the search form');
+  assert.equal(await page.locator('h1').count(), 1, 'Page has more than one primary heading');
+}
+async function sourceDetails(page) {
+  const summary = page.locator('summary').filter({ hasText: 'Fuente, tiempos y archivo' });
+  if (await summary.locator('..').getAttribute('open') === null) await summary.click();
+}
+async function importDetails(page) {
+  const summary = page.locator('summary').filter({ hasText: 'Importar letras JSON' });
+  if (await summary.locator('..').getAttribute('open') === null) await summary.click();
 }
 async function state(page, value, timeout = 12000) {
   await page.locator(`[data-testid="lyrics-result"][data-state="${value}"]`).waitFor({ state: 'visible', timeout });
@@ -72,19 +99,14 @@ async function noOverflow(page) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false, 'Horizontal overflow');
 }
 async function measureSearchLayout(page) {
-  const heading = page.getByRole('heading', { name: 'Find lyrics', exact: true });
-  const read = () => heading.evaluate(element => ({ searchHeadingTop: element.getBoundingClientRect().top + window.scrollY, viewportHeight: window.innerHeight, viewportWidth: window.innerWidth }));
-  const after = await read();
-  // Reproduce only the prior two Login.css declarations in this isolated page.
-  // This measures the old rule in the browser; it is not a past-deployment claim.
-  const priorRule = await page.addStyleTag({ content: '.login { height: 100vh !important; padding: 0 !important; }' });
-  const before = await read();
-  await priorRule.evaluate(element => element.remove());
-  const restored = await read();
-  assert.equal(restored.searchHeadingTop, after.searchHeadingTop, 'Temporary prior-style measurement was not restored');
-  assert.ok(before.searchHeadingTop > after.searchHeadingTop, 'Natural-height login did not move manual search earlier');
-  assert.ok(after.searchHeadingTop < after.viewportHeight, 'Manual search heading begins below the initial viewport');
-  return { beforeOldRuleAppliedInBrowser: before, afterFinalCss: after, beforeMeasurement: 'Prior .login height:100vh/padding:0 applied temporarily to the isolated live test page, then removed. No source or build mutation.' };
+  const heading = page.getByRole('heading', { name: 'Busca tu canción', exact: true });
+  const layout = await heading.evaluate(element => ({ searchHeadingTop: element.getBoundingClientRect().top, viewportHeight: window.innerHeight, viewportWidth: window.innerWidth }));
+  const submit = await page.getByRole('button', { name: 'Buscar letras', exact: true }).boundingBox();
+  assert.ok(layout.searchHeadingTop >= 0 && layout.searchHeadingTop < layout.viewportHeight, 'Finder heading is outside the initial viewport');
+  assert.ok(submit && submit.y >= 0 && submit.y + submit.height <= layout.viewportHeight, 'Manual search requires scrolling before it can be submitted');
+  assert.equal(await page.locator('h1').count(), 1, 'Initial page has more than one primary heading');
+  assert.equal(await page.getByRole('button', { name: 'Conectar Spotify', exact: true }).isVisible(), true, 'Optional Spotify connection is unavailable');
+  return { ...layout, submitTop: submit.y, submitBottom: submit.y + submit.height, primaryHeadingCount: 1 };
 }
 async function capture(page, filename, fullPage = true) {
   await noOverflow(page);
@@ -113,9 +135,14 @@ function clean(observed) {
     const livePage = await liveContext.newPage();
     const liveObserved = observe(livePage);
     await livePage.goto(live.url, { waitUntil: 'domcontentloaded' });
-    await livePage.getByRole('heading', { name: 'Find lyrics', exact: true }).waitFor({ state: 'visible' });
+    await livePage.getByRole('heading', { name: 'Busca tu canción', exact: true }).waitFor({ state: 'visible' });
     await livePage.locator('.login').waitFor({ state: 'visible' });
     evidence.layout = { desktop: await measureSearchLayout(livePage) };
+    await capture(livePage, 'finder-desktop.png', false);
+    await livePage.setViewportSize({ width: 390, height: 844 });
+    evidence.layout.mobile = await measureSearchLayout(livePage);
+    await capture(livePage, 'finder-mobile.png', false);
+    await livePage.setViewportSize({ width: 1440, height: 1000 });
     // No lyric API route interception is registered for this scenario.
     let liveResult;
     let liveStoredLyrics;
@@ -131,7 +158,8 @@ function clean(observed) {
         assert.equal(lyrics.requested.artist, request.artist);
         assert.ok(['lrclib.net', 'lyrics.ovh'].includes(lyrics.source));
         assert.equal(await livePage.getByTestId('lyrics-source').getAttribute('href'), lyrics.sourceUrl);
-        assert.match(await livePage.getByTestId('device-save-status').innerText(), /^Saved on this device/);
+        assert.match(await livePage.getByTestId('device-save-status').innerText(), /^Guardada en este dispositivo/);
+        await reading(livePage);
         if (resultState === 'plain') assert.ok(await livePage.getByTestId('plain-lyrics').textContent() === lyrics.text, 'Live rendered plain text differs from retrieved device JSON');
         else assert.ok(JSON.stringify(await livePage.locator('.lyrics__line').allTextContents()) === JSON.stringify(lyrics.synced.map(line => line.words.join(' '))), 'Live rendered lines differ from retrieved device JSON');
         liveStoredLyrics = lyrics;
@@ -148,7 +176,6 @@ function clean(observed) {
     await livePage.getByTestId('lyrics-source').scrollIntoViewIfNeeded();
     await capture(livePage, 'live-desktop-attribution.png', false);
     await livePage.setViewportSize({ width: 390, height: 844 });
-    evidence.layout.mobile = await measureSearchLayout(livePage);
     await livePage.evaluate(() => window.scrollTo(0, 0));
     await capture(livePage, 'live-mobile.png', false);
     await livePage.getByTestId('lyrics-source').scrollIntoViewIfNeeded();
@@ -162,7 +189,8 @@ function clean(observed) {
     await liveContext.setOffline(true);
     await livePage.reload({ waitUntil: 'domcontentloaded', timeout: 10000 });
     await state(livePage, liveResult.state);
-    assert.match(await livePage.getByTestId('lyrics-result').innerText(), /Loaded from this device · Offline/);
+    await reading(livePage);
+    assert.match(await livePage.getByTestId('lyrics-result').innerText(), /Cargada desde este dispositivo · sin conexión/);
     assert.equal(await livePage.evaluate(() => navigator.onLine), false);
     const offlineLyrics = await livePage.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}').entries?.[0]?.lyrics, storageKey);
     assert.ok(JSON.stringify(offlineLyrics) === JSON.stringify(liveStoredLyrics), 'Offline reload changed the saved result or its provenance');
@@ -178,15 +206,24 @@ function clean(observed) {
     const page = await context.newPage();
     const observed = observe(page, true);
     await page.goto(fixtures.url, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('heading', { name: 'Find lyrics', exact: true }).waitFor({ state: 'visible' });
-    await search(page, 'Plain Fixture'); await state(page, 'plain');
+    await page.getByRole('heading', { name: 'Busca tu canción', exact: true }).waitFor({ state: 'visible' });
+    await search(page, 'Plain Fixture', 'Fixture Ensemble', 'Fixture Album'); await state(page, 'plain');
+    await reading(page);
+    await returnToSearch(page, true);
+    assert.equal(await page.locator('#lyrics-title').inputValue(), 'Plain Fixture');
+    assert.equal(await page.locator('#lyrics-artist').inputValue(), 'Fixture Ensemble');
+    assert.equal(await page.locator('#lyrics-album').inputValue(), 'Fixture Album');
+    assert.equal(fixtures.calls.length, 1, 'Returning to search unexpectedly repeated the lookup');
+    await search(page, 'Plain Fixture', 'Fixture Ensemble', 'Fixture Album'); await state(page, 'plain');
+    await reading(page);
     assert.match(await page.getByTestId('plain-lyrics').innerText(), /<img src=x/);
     assert.equal(await page.locator('[data-testid="plain-lyrics"] img').count(), 0);
     assert.equal(await page.evaluate(() => window.fixtureInjection), undefined);
-    assert.match(await page.getByTestId('device-save-status').innerText(), /^Saved on this device/);
+    assert.match(await page.getByTestId('device-save-status').innerText(), /^Guardada en este dispositivo/);
     await capture(page, 'fixture-plain-desktop.png');
     const downloadEvent = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Download lyrics JSON' }).click();
+    await sourceDetails(page);
+    await page.getByRole('button', { name: 'Descargar letras JSON' }).click();
     const download = await downloadEvent;
     const stream = await download.createReadStream();
     const chunks = []; for await (const chunk of stream) chunks.push(chunk);
@@ -194,38 +231,57 @@ function clean(observed) {
     assert.equal(exported.version, 1);
     assert.equal(exported.lyrics.sourceUrl, 'https://lrclib.net/api/get/101');
     assert.equal(exported.lyrics.requested.title, 'Plain Fixture');
+    assert.equal(exported.lyrics.requested.album, 'Fixture Album');
     await search(page, 'Synced Fixture'); await state(page, 'synced');
+    await reading(page);
+    assert.match(await page.getByTestId('lyrics-result').innerText(), /Guía manual · Sin audio/);
+    assert.equal(await page.getByTestId('lyrics-result').getByRole('progressbar').count(), 0, 'Manual line guide invented playback progress');
     assert.equal(await page.locator('.lyrics__line--active').innerText(), 'Original opening');
+    await page.getByRole('button', { name: 'Siguiente línea', exact: true }).click();
+    assert.equal(await page.locator('[aria-current="true"]').innerText(), 'Original ending');
+    await page.getByRole('button', { name: 'Anterior', exact: true }).click();
+    assert.equal(await page.locator('[aria-current="true"]').innerText(), 'Original opening');
     await page.setViewportSize({ width: 390, height: 844 }); await capture(page, 'fixture-synced-mobile.png');
     await search(page, 'Instrumental Fixture'); await state(page, 'instrumental');
+    await reading(page);
     assert.equal(await page.getByTestId('plain-lyrics').count(), 0);
     await search(page, 'Missing Fixture'); await state(page, 'missing');
+    assert.equal(await page.locator('form[aria-label="Buscar letras"]').isVisible(), true);
+    assert.equal(await page.locator('#lyrics-title').inputValue(), 'Missing Fixture');
     assert.equal(await page.getByTestId('plain-lyrics').count(), 0);
     assert.ok(observed.requests.some(request => request.status === 404));
     await capture(page, 'fixture-missing-mobile.png');
     await search(page, 'Retry Fixture'); await state(page, 'error');
-    const retry = page.getByRole('button', { name: 'Retry lyrics', exact: true });
+    assert.equal(await page.locator('form[aria-label="Buscar letras"]').isVisible(), true);
+    assert.equal(await page.locator('#lyrics-title').inputValue(), 'Retry Fixture');
+    const retry = page.getByRole('button', { name: 'Reintentar', exact: true });
     assert.equal(await retry.isDisabled(), true);
     const beforeRetry = fixtures.calls.filter(call => call.title === 'Retry Fixture').length;
-    await page.getByRole('button', { name: 'Find lyrics', exact: true }).click();
+    await page.getByRole('button', { name: 'Buscar letras', exact: true }).click();
     assert.equal(fixtures.calls.filter(call => call.title === 'Retry Fixture').length, beforeRetry, 'Manual resubmit bypassed cooldown');
     await capture(page, 'fixture-retry-cooldown-mobile.png');
-    await page.waitForFunction(() => !Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Retry lyrics')?.disabled, null, { timeout: 5000 });
+    await page.waitForFunction(() => !Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Reintentar')?.disabled, null, { timeout: 5000 });
     await retry.click(); await state(page, 'plain');
     assert.equal(fixtures.calls.filter(call => call.title === 'Retry Fixture').length, 2);
     assert.ok(observed.requests.some(request => request.status === 503));
     await search(page, 'Unavailable Fixture'); await state(page, 'error');
-    await page.getByLabel('Import lyrics JSON').setInputFiles({ name: 'fixture.lyrics.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
+    await importDetails(page);
+    await page.getByLabel('Importar letras JSON').setInputFiles({ name: 'fixture.lyrics.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
     await state(page, 'plain');
+    await reading(page);
     assert.equal(await page.getByTestId('lyrics-source').getAttribute('href'), exported.lyrics.sourceUrl);
     const importedCache = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}'), storageKey);
     assert.deepEqual(importedCache.entries[0].lyrics, exported.lyrics);
     await capture(page, 'fixture-import-export-mobile.png');
-    await page.getByLabel('Import lyrics JSON').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{bad json') });
+    await importDetails(page);
+    await page.getByLabel('Importar letras JSON').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{bad json') });
     await page.getByRole('alert').waitFor();
-    assert.match(await page.getByRole('alert').innerText(), /valid lyrics JSON/);
+    assert.match(await page.getByRole('alert').innerText(), /archivo JSON de letras válido/);
+    await page.getByLabel('Importar letras JSON').setInputFiles({ name: 'oversized.json', mimeType: 'application/json', buffer: Buffer.alloc(1024 * 1024 + 1, 0x20) });
+    assert.match(await page.getByRole('alert').innerText(), /menos de 1 MB/);
+    assert.equal(await page.getByTestId('plain-lyrics').textContent(), exported.lyrics.text, 'Invalid imports replaced the selected lyrics');
     clean(observed);
-    evidence.scenarios.push({ name: 'plain-safe-render-synced-instrumental-missing-retry503-cooldown-import-export-invalid-json', ok: true, exportFilename: download.suggestedFilename(), sourceUrl: exported.lyrics.sourceUrl, ...observed });
+    evidence.scenarios.push({ name: 'keyboard-return-query-focus-safe-plain-manual-lines-instrumental-missing-retry503-cooldown-import-export-invalid-oversized-json', ok: true, exportFilename: download.suggestedFilename(), sourceUrl: exported.lyrics.sourceUrl, ...observed });
     await context.close();
 
     const playbackContext = await browser.newContext({ viewport: { width: 1366, height: 1000 }, serviceWorkers: 'block' });
@@ -266,13 +322,13 @@ function clean(observed) {
     await playbackPage.goto(fixtures.url, { waitUntil: 'domcontentloaded' });
     await state(playbackPage, 'synced');
     await playbackPage.waitForFunction(() => document.querySelector('.lyrics__line--active')?.textContent === 'Original ending');
-    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Song progress' }).getAttribute('aria-valuenow'), '8000');
+    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Progreso de la canción' }).getAttribute('aria-valuenow'), '8000');
     await playbackPage.waitForFunction(() => document.querySelector('.lyrics__line--active')?.textContent === 'Original opening', null, { timeout: 7000 });
-    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Song progress' }).getAttribute('aria-valuenow'), '2000');
-    await playbackPage.waitForFunction(() => document.querySelector('[aria-label="Song progress"]')?.getAttribute('aria-valuenow') === '10000', null, { timeout: 5000 });
+    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Progreso de la canción' }).getAttribute('aria-valuenow'), '2000');
+    await playbackPage.waitForFunction(() => document.querySelector('[aria-label="Progreso de la canción"]')?.getAttribute('aria-valuenow') === '10000', null, { timeout: 5000 });
     assert.equal(await playbackPage.locator('.lyrics__line--active').innerText(), 'Original ending');
     await new Promise(resolve => setTimeout(resolve, 250));
-    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Song progress' }).getAttribute('aria-valuenow'), '10000', 'Paused progress advanced unexpectedly');
+    assert.equal(await playbackPage.getByRole('progressbar', { name: 'Progreso de la canción' }).getAttribute('aria-valuenow'), '10000', 'Paused progress advanced unexpectedly');
     assert.equal(tokenRequests, 1, '401 should refresh once and replay');
     assert.equal(maxInFlight, 1, 'Spotify polling overlapped');
     assert.ok(pollRequests.length >= 5);
@@ -304,13 +360,13 @@ function clean(observed) {
       const failurePage = await failureContext.newPage();
       const failureObserved = observe(failurePage);
       await failurePage.goto(fixtures.url, { waitUntil: 'domcontentloaded' });
-      await failurePage.getByRole('heading', { name: 'Find lyrics', exact: true }).waitFor({ state: 'visible' });
+      await failurePage.locator('#song-search').waitFor({ state: 'attached' });
       if (failure === 'corrupt') await state(failurePage, 'idle');
       await search(failurePage, 'Plain Fixture'); await state(failurePage, 'plain');
       const statusText = await failurePage.getByTestId('device-save-status').innerText();
-      if (failure === 'quota' || failure === 'disabled') assert.match(statusText, /^Not saved on this device/);
+      if (failure === 'quota' || failure === 'disabled') assert.match(statusText, /^No guardada en este dispositivo/);
       else {
-        assert.match(statusText, /^Saved on this device/);
+        assert.match(statusText, /^Guardada en este dispositivo/);
         const cache = await failurePage.evaluate(key => JSON.parse(localStorage.getItem(key) || '{}'), storageKey);
         if (failure === 'eviction') {
           assert.equal(cache.entries.length, 30);

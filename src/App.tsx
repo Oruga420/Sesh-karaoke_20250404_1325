@@ -24,10 +24,28 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [trackProgress, setTrackProgress] = useState(0);
   const [syncAdjustment, setSyncAdjustment] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [wide, setWide] = useState(false);
   const lyrics = useLyricsLookup();
   const { load, clear } = lyrics;
   const selection = useRef<'manual' | 'spotify'>(lyrics.view.requested ? 'manual' : 'spotify');
   const clock = useRef({ progress: 0, duration: 0, receivedAt: 0, playing: false });
+  const searchInput = useRef<HTMLInputElement>(null);
+  const reader = useRef<HTMLDivElement>(null);
+  const restoreSearchFocus = useRef(false);
+  const hasLyrics = lyrics.view.phase === 'ready' && ['found', 'instrumental'].includes(lyrics.view.lookup?.lyrics.status || '');
+  const reading = hasLyrics && !searchOpen;
+  const wasReading = useRef(reading);
+
+  useEffect(() => {
+    if (!reading && restoreSearchFocus.current) {
+      restoreSearchFocus.current = false;
+      searchInput.current?.focus();
+    } else if (reading && !wasReading.current) {
+      reader.current?.focus({ preventScroll: true });
+    }
+    wasReading.current = reading;
+  }, [reading]);
 
   useEffect(() => {
     let active = true;
@@ -48,7 +66,7 @@ function App() {
         if (!active) return;
         const authRequired = (error as { authRequired?: boolean }).authRequired;
         setConnected(!authRequired);
-        setConnectionMessage(authRequired ? 'Connect to Spotify again to resume playback.' : 'Spotify is temporarily unavailable. Reconnecting…');
+        setConnectionMessage(authRequired ? 'Conecta Spotify de nuevo para seguir la reproducción.' : 'Spotify no está disponible por el momento. Reconectando…');
       } finally { if (active) setAuthLoading(false); }
     }
     void initialize();
@@ -86,9 +104,9 @@ function App() {
           clearSpotifySession(); setConnected(false); setCurrentTrack(null); setIsPlaying(false); setTrackProgress(0);
           clock.current.playing = false;
           if (selection.current === 'spotify') clear();
-          setConnectionMessage('Connect to Spotify again to resume playback.');
+          setConnectionMessage('Conecta Spotify de nuevo para seguir la reproducción.');
         } else {
-          setConnectionMessage(details.status === 429 ? `Spotify is busy. Retrying in ${details.retryAfter || 5}s.` : 'Spotify connection interrupted. Reconnecting…');
+          setConnectionMessage(details.status === 429 ? `Spotify está ocupado. Reintentando en ${details.retryAfter || 5} s.` : 'Se interrumpió la conexión con Spotify. Reconectando…');
         }
       },
     });
@@ -100,32 +118,56 @@ function App() {
   }, [connected, load, clear]);
 
   function manualSearch(requested: Recording) {
-    selection.current = 'manual'; setSyncAdjustment(0); void load(requested);
+    selection.current = 'manual'; setSyncAdjustment(0); setSearchOpen(false); void load(requested);
   }
   function imported(lookup: LyricsLookup) {
-    selection.current = 'manual'; setSyncAdjustment(0); lyrics.imported(lookup);
+    selection.current = 'manual'; setSyncAdjustment(0); setSearchOpen(false); lyrics.imported(lookup);
+  }
+  function returnToSearch() {
+    restoreSearchFocus.current = reading;
+    setSearchOpen(true);
+    setWide(false);
+    if (!reading) searchInput.current?.focus();
   }
   const followsPlayback = selection.current === 'spotify' && currentTrack !== null;
-  return <div className="app"><main className="app__main">
-    <header className="app__header"><h1>Spotify Karaoke</h1><p>Lyrics for your music, online or saved on this device.</p></header>
-    {connectionMessage && <p className="app__connection" role="status">{connectionMessage}</p>}
-    {authLoading ? <p role="status">Checking Spotify connection…</p> : !connected ? <Login /> : <>
-      <Player track={currentTrack ? { ...currentTrack, progress_ms: trackProgress } : null} isPlaying={isPlaying} />
-      {currentTrack && <VisualizerView isPlaying={isPlaying} />}
-      <div className="app__spotify-actions">
-        {currentTrack && selection.current === 'manual' && <button type="button" onClick={() => {
-          selection.current = 'spotify'; setSyncAdjustment(0); void load(recordingForTrack(currentTrack));
-        }}>Use current Spotify song</button>}
-        <button className="secondary-button" type="button" onClick={() => {
-          clearSpotifySession(); setConnected(false); setCurrentTrack(null); setIsPlaying(false); setTrackProgress(0);
-          if (selection.current === 'spotify') clear();
-        }}>Disconnect Spotify</button>
+  return <div className={`app${reading ? ' app--reading' : ''}${wide && reading ? ' app--wide' : ''}`}>
+    <a className="skip-link" href="#song-search" onClick={event => { event.preventDefault(); returnToSearch(); }}>Ir al buscador</a>
+    <main className="app__main">
+      <header className="app__header">
+        <div className="app__identity"><h1>Karaoke</h1><p>Letras para cantar</p></div>
+        <span className="app__signature" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M4 12h11M4 17h16" /></svg>A tu ritmo</span>
+      </header>
+      <div className="app__workspace">
+        <div id="song-search" className="app__search" hidden={reading}>
+          <ManualLyricsSearch onSearch={manualSearch} initial={lyrics.view.requested} titleInputRef={searchInput} />
+        </div>
+        <div id="song-reader" className="app__reading" ref={reader} tabIndex={-1} role="region" aria-label="Lector de letras">
+          <LyricsResultView view={lyrics.view} reading={reading} followsPlayback={followsPlayback}
+            progress={followsPlayback ? trackProgress + syncAdjustment : 0}
+            duration={followsPlayback ? currentTrack?.duration_ms || 0 : 0} paused={!followsPlayback || !isPlaying}
+            onRetry={lyrics.retry} onImport={imported} onReturnToSearch={returnToSearch}
+            wide={wide} onToggleWide={() => setWide(value => !value)}
+            tools={followsPlayback && lyrics.view.lookup?.lyrics.timing === 'line' ? <SyncControls adjustment={syncAdjustment} onSyncAdjust={setSyncAdjustment} /> : undefined} />
+        </div>
+        <section className="app__spotify" aria-label="Conexión con Spotify">
+          {connectionMessage && <p className="app__connection" role="status">{connectionMessage}</p>}
+          {authLoading ? <p role="status">Comprobando conexión con Spotify…</p> : !connected ? <Login /> : <>
+            <h2>En Spotify</h2>
+            <Player track={currentTrack ? { ...currentTrack, progress_ms: trackProgress } : null} isPlaying={isPlaying} />
+            <div className="app__spotify-actions">
+              {currentTrack && selection.current === 'manual' && <button type="button" onClick={() => {
+                selection.current = 'spotify'; setSyncAdjustment(0); setSearchOpen(false); void load(recordingForTrack(currentTrack));
+              }}>Usar canción de Spotify</button>}
+              <button type="button" onClick={() => {
+                clearSpotifySession(); setConnected(false); setCurrentTrack(null); setIsPlaying(false); setTrackProgress(0);
+                if (selection.current === 'spotify') clear();
+              }}>Desconectar Spotify</button>
+            </div>
+            {currentTrack && <details className="app__visualizer"><summary>Visualizador decorativo</summary><VisualizerView isPlaying={isPlaying} /></details>}
+          </>}
+        </section>
       </div>
-    </>}
-    <ManualLyricsSearch onSearch={manualSearch} initial={lyrics.view.requested} />
-    {followsPlayback && lyrics.view.lookup?.lyrics.timing === 'line' && <SyncControls adjustment={syncAdjustment} onSyncAdjust={setSyncAdjustment} />}
-    <LyricsResultView view={lyrics.view} progress={followsPlayback ? trackProgress + syncAdjustment : 0}
-      duration={followsPlayback ? currentTrack?.duration_ms || 0 : 0} paused={!followsPlayback || !isPlaying} onRetry={lyrics.retry} onImport={imported} />
-  </main></div>;
+    </main>
+  </div>;
 }
 export default App;

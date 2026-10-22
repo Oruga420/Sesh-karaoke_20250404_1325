@@ -69,11 +69,11 @@ function Callback() {
 
   return (
     <div className="app">
-      <div className="app__container">
-        <h2>Procesando Autenticación</h2>
+      <main className="app__main">
+        <header className="app__header"><div className="app__identity"><h1>Karaoke</h1><p>Conexión con Spotify</p></div></header>
+        <h2>Autenticación con Spotify</h2>
         <p role="status">{status}</p>
-        <div className="loading-spinner"></div>
-      </div>
+      </main>
     </div>
   );
 }
