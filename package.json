@@ -5,12 +5,17 @@
   "main": "index.js",
   "scripts": {
     "start": "react-scripts start",
-    "start-redirect": "node server/redirect-server.js",
     "start-api": "node server/server.js",
-    "start-all": "concurrently \"npm run start\" \"npm run start-redirect\" \"npm run start-api\"",
+    "start-all": "concurrently \"npm run start\" \"npm run start-api\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "test:api": "node scripts/test-api.cjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "node scripts/lint.cjs",
+    "security:check": "node scripts/security-check.cjs",
+    "smoke": "node scripts/smoke.cjs",
+    "test:e2e": "node scripts/e2e.cjs"
   },
   "dependencies": {
     "@types/spotify-web-api-js": "^0.0.27",

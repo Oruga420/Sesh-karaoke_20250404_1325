@@ -1,0 +1,23 @@
+# Keep local evidence, credentials and user-owned lyric data off the deployment.
+.git/
+.vercel/
+.omx/
+.claude/
+node_modules/
+build/
+coverage/
+artifacts/
+docs/reports/
+loops/
+projectstatus.html
+.cache/
+lyrics-exports/
+playwright-report/
+test-results/
+.env
+.env.*
+server/.env
+server/.env.*
+*.log
+__pycache__/
+*.pyc

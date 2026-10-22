@@ -36,11 +36,14 @@ function Login() {
   return (
     <div className="login">
       <div className="login__container">
-        <img
-          src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_Green.png"
-          alt="Spotify logo"
-          className="login__logo"
-        />
+        <svg className="login__logo" role="img" aria-label="Spotify logo" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" fill="#1DB954" />
+          <g fill="none" stroke="#101a13" strokeWidth="6" strokeLinecap="round">
+            <path d="M25 38 Q51 27 78 41" />
+            <path d="M29 52 Q51 43 74 55" />
+            <path d="M33 66 Q51 59 69 68" />
+          </g>
+        </svg>
 
         <h1>Spotify Karaoke</h1>
 

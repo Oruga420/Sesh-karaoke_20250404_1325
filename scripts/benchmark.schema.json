@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["schemaVersion", "ok", "measuredAt", "scope", "deterministic", "live", "summary"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "ok": { "type": "boolean" },
+    "measuredAt": { "type": "string", "format": "date-time" },
+    "scope": { "type": "string" },
+    "deterministic": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["case", "evidence", "requested", "expectedCorrectnessClass", "before", "after", "classification"],
+        "properties": {
+          "case": { "type": "string" },
+          "requested": { "$ref": "#/definitions/requested" },
+          "expectedCorrectnessClass": { "type": "string" },
+          "before": { "type": "object" },
+          "after": { "$ref": "#/definitions/result" },
+          "classification": { "enum": ["corrected-demonstrated-defect", "regression-still-fails"] }
+        }
+      }
+    },
+    "live": {
+      "type": "array", "minItems": 8, "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["requested", "expectedCorrectnessClass", "expected", "before", "after"],
+        "properties": {
+          "requested": { "$ref": "#/definitions/requested" },
+          "expectedCorrectnessClass": { "type": "string" },
+          "expected": {
+            "type": "object", "required": ["catalogId", "title", "artist", "album", "duration", "lyricState"],
+            "properties": { "catalogId": { "type": "integer" }, "title": { "type": "string" }, "artist": { "type": "string" }, "album": { "type": "string" }, "duration": { "type": "number" }, "lyricState": { "enum": ["plain", "synced", "instrumental"] } }
+          },
+          "before": { "type": "object", "required": ["query", "http", "source", "synthetic", "returnedMatchedMetadata", "classification"] },
+          "after": {
+            "allOf": [
+              { "$ref": "#/definitions/result" },
+              { "type": "object", "required": ["elapsedMs", "returnedMatchedMetadata", "classification"], "properties": { "elapsedMs": { "type": "number", "minimum": 0 }, "classification": { "enum": ["not-found", "temporarily-unavailable", "unverified-title-artist-text-retrieval", "unverifiable-recording", "wrong-recording", "correct-recording-and-lyric-state", "recording-match-with-changed-lyric-state"] } } }
+            ]
+          }
+        }
+      }
+    },
+    "summary": { "type": "object", "required": ["deterministicDefectsCorrected", "liveRequests", "baselineRealResponses", "baselineSyntheticResponses", "measuredCorrectRecordingAndState", "unverifiedTextRetrievals", "wrongRecordings", "note"] }
+  },
+  "definitions": {
+    "requested": { "type": "object", "required": ["title", "artist"], "properties": { "title": { "type": "string" }, "artist": { "type": "string" }, "album": { "type": "string" }, "duration": { "type": ["number", "string"] } } },
+    "result": { "type": "object", "required": ["status", "timing", "source", "sourceUrl", "confidence", "songInfo", "requested", "fetchedAt", "cache", "textCharacters", "syncedLines"], "properties": { "status": { "enum": ["found", "instrumental", "not_found", "unavailable"] }, "timing": { "enum": ["line", "none"] }, "source": { "type": ["string", "null"] }, "sourceUrl": { "type": ["string", "null"] }, "songInfo": { "type": ["object", "null"] }, "confidence": { "enum": ["exact", "matched", "title-artist", "none"] }, "textCharacters": { "type": "integer", "minimum": 0 }, "syncedLines": { "type": "integer", "minimum": 0 } } }
+  }
+}

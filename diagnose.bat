@@ -12,7 +12,7 @@ if not exist ".env" (
     (
         echo # Spotify Setup
         echo REACT_APP_SPOTIFY_CLIENT_ID=3be3c1962cc44e2d820c6171d9debbf2
-        echo REACT_APP_SPOTIFY_CLIENT_SECRET=dae664828eee4fe4bf73c1d52eebe63d
+        echo REACT_APP_SPOTIFY_CLIENT_SECRET=[REMOVED: configure your own server-only environment]
         echo REACT_APP_REDIRECT_URI=http://localhost:8888/callback
         echo.
         echo # Backend API - Make sure this matches the server port
@@ -32,7 +32,7 @@ if not exist "server\.env" (
         echo.
         echo # Spotify credentials
         echo SPOTIFY_CLIENT_ID=3be3c1962cc44e2d820c6171d9debbf2
-        echo SPOTIFY_CLIENT_SECRET=dae664828eee4fe4bf73c1d52eebe63d
+        echo SPOTIFY_CLIENT_SECRET=[REMOVED: configure your own server-only environment]
         echo SPOTIFY_REDIRECT_URI=http://localhost:8888/callback
     ) > server\.env
     echo Server .env file created!

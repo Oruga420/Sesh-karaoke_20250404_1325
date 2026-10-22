@@ -1,8 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
-/server/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -20,6 +19,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 /server/.env
 
 npm-debug.log*
@@ -29,3 +29,18 @@ yarn-error.log*
 # Generated .pyc files
 *.pyc
 __pycache__/
+
+# Local verification evidence and user-owned lyric data
+/.omx/
+/artifacts/
+/docs/reports/
+/projectstatus.html
+/.cache/
+/lyrics-exports/
+/playwright-report/
+/test-results/
+
+# Local execution contracts are not application source
+/loops/
+
+.vercel

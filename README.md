@@ -1,107 +1,59 @@
-# Spotify Karaoke
+# Oruga Karaoke
 
-A karaoke application that syncs with your Spotify account to display synchronized lyrics for the currently playing song.
+React/TypeScript karaoke client with a shared Express/Vercel lyrics resolver. Manual title/artist lookup works without Spotify login. Spotify playback uses PKCE and a public application client ID; no client secret belongs in this frontend.
 
-## Features
+## Run locally
 
-- Spotify authentication using OAuth 2.0
-- Displays currently playing song information
-- Synchronized lyrics with word-by-word highlighting
-- Dynamic visualization effects
-- Auto-scrolling lyrics that follow along with the song
+Use the existing lockfile and installed dependencies. For a fresh personal checkout, `npm ci` restores the locked root dependencies; this change adds none. Copy `.env.example` to ignored `.env.local`, configure your own public Spotify client ID, and register `http://127.0.0.1:3000/callback` in your personal Spotify application if playback is needed. The existing public client ID is retained only in this machine's ignored local configuration. Redirects must use HTTPS or an explicit loopback IP; `localhost` is not a supported Spotify redirect.
 
-## Setup
+Run `npm run start-api` and `npm start` in separate terminals, or use `npm run start-all`, then open `http://127.0.0.1:3000`. The CRA proxy sends same-origin `/api` requests to `http://127.0.0.1:3001`. An empty `REACT_APP_API_URL` uses that same-origin path.
 
-1. Clone the repository
-   ```
-   git clone https://github.com/yourusername/spotify-karaoke.git
-   cd spotify-karaoke
-   ```
+`npm run build` creates the production frontend. `npm run start-api` can serve that build and `/api/lyrics` from the same Express process. Vercel routes `/lyrics` and legacy lyric URLs to the real shared handler.
 
-2. Install dependencies
-   ```
-   npm install
-   cd server && npm install && cd ..
-   ```
+## Lyrics and saved JSON
 
-3. Configure Spotify credentials
-   The app uses the following environment variables:
-   ```
-   REACT_APP_SPOTIFY_CLIENT_ID=your_spotify_client_id
-   REACT_APP_REDIRECT_URI=http://localhost:3000/callback
-   REACT_APP_API_URL=http://localhost:3001
-   ```
+The resolver tries LRCLIB signature and conservative catalog matching, then an ordinary title/artist-only lyrics.ovh fallback. Provider results can be synced by line, plain, instrumental, missing, or temporarily unavailable. Real line timestamps drive highlighting; the application does not generate lyrics or word timings. Live/remix/version-sensitive requests skip the identity-unverified fallback. Attribution and matched/requested recording metadata accompany every successful result. Title/artist-only fallback text is explicitly unverified as a recording match.
 
-## Running the Application Locally
+There are three separate cache scopes:
 
-### Important: You need to start the frontend and API services
+- Express uses bounded memory and atomic JSON files under ignored `.cache/lyrics` on this writable local machine. A different process can recover those files.
+- Vercel uses bounded, ephemeral memory. It does not provide shared durable JSON storage across instances or deployments.
+- The browser saves validated, bounded, expiring JSON on the current device. This is independent of the server's cache, can be evicted by the browser, and can fail when storage is disabled or full. Download/import transfers the versioned JSON wrapper with provenance; no remote publication occurs.
 
-The application consists of two active parts during local development:
+Missing results are separate from provider errors. Retry remains available for the same song and honors a server cooldown. Production builds cache the same-origin app shell for a full offline reload, which can then reuse device JSON. The CRA development server saves device JSON but does not register that service worker. Uncached lookups require a connection. Imported JSON is data and is rendered as text.
 
-1. **Frontend React App** (port 3000)
-2. **Lyrics API Server** (port 3001) - Provides lyrics data
+## Verification
 
-### Option 1: Start services at once (recommended)
+Use these commands with the existing dependencies:
 
-```
-npm run start-all
+```text
+npm run test:api
+npm test -- --watchAll=false --runInBand   # CI=true
+npm run typecheck
+npm run lint
+npm run build
+npm run smoke
+node scripts/browser-preflight.cjs
+npm run test:e2e
+npm run security:check
+git diff --check
+node scripts/benchmark.cjs
 ```
 
-This will start the app services concurrently.
+`smoke` uses real local HTTP and a live public lyric provider, checks a warm hit, then starts a different PID with providers disabled and requires a persistent disk hit. Its temporary local cache is removed after verification. `test:e2e` requires an existing browser/runtime preflight, performs an unintercepted manual live lookup, and separately exercises deterministic browser fixtures. No browser or npm dependency is downloaded by those commands. Evidence, screenshots and local export files stay under ignored `artifacts/`.
 
-### Option 2: Start each service individually
+Set `KARAOKE_BROWSER_PATH` to one existing Chrome/Edge executable to select it explicitly; no other browser is tried when that variable is set. `KARAOKE_BROWSER_LAUNCH_TIMEOUT_MS` accepts a bounded launch timeout up to 30000 ms. Preflight verifies real DOM rendering and records the owned browser PID and its termination; the browser harness does not terminate unrelated applications.
+The equivalent command arguments are `--browser-path="C:/path/to/msedge.exe" --launch-timeout-ms=30000` (append them directly to the Node script command, or after `npm run test:e2e --`).
+For shells that cannot preserve a quoted executable path, ignored `artifacts/browser-options.json` can contain `{"browserPath":"C:/path/to/msedge.exe","launchTimeoutMs":30000}`; `--options=path/to/options.json` selects another local options file.
 
-In separate terminal windows:
+The benchmark uses this run's ignored `artifacts/baseline/` files to compare three synthetic baseline defects and eight frozen catalog-selected diagnostic requests. It fails clearly if those local baseline files are absent. It records expected and returned metadata, status, source, timing, latency and wrong/unverifiable classifications without full lyric text. These counts do not establish repertoire-wide coverage. Live network failure blocks live acceptance; mocked fixtures cannot replace it.
 
-```
-# Terminal 1: Start the React frontend
-npm start
+`security:check` scans tracked text files (including the retained upstream snapshot) plus the current built bundle for documented credential-literal patterns. Placeholder fixture strings are skipped by documented prefixes. Its JSON reports filenames/lines and pattern names, never matched secret values. It does not inspect remote Git history or provider dashboards. Diagnostics are disabled unless server-only `DEBUG_ACCESS_TOKEN` is configured; authorized output contains only service metadata. The old probe endpoints no longer echo tokens, headers or credentials, and no paid provider key is required.
 
-# Terminal 2: Start the API server
-npm run start-api
-```
+## Personal release steps
 
-## Deployment to Vercel
+Local verification is separate from release. Before an owner-approved publication, review the diff and A1–A9 evidence, rotate any previously exposed credentials in the owner's provider dashboard, configure only personal accounts/environment values, verify the destination repository and deployment, and run a separate production acceptance check. Confirm real Spotify authorization and playback using the owner's account.
 
-This project is configured for easy deployment to Vercel:
+The existing personal hosting project is `oruga420s-projects/sesh-karaoke`. Link it explicitly with `vercel link --yes --project sesh-karaoke --scope oruga420s-projects`. Use `vercel deploy --prod --skip-domain --scope oruga420s-projects` to build an unaliased production candidate, verify its UI and `/api/lyrics`, then promote that exact deployment with `vercel promote <deployment-url> --scope oruga420s-projects`. Keep `REACT_APP_API_URL` empty for same-origin requests and use the stable HTTPS callback URL already allowed in the owner's Spotify app. Only the public client ID belongs in frontend configuration.
 
-1. Push your code to GitHub
-2. Connect your GitHub repository to Vercel
-3. Configure the following environment variables in Vercel:
-   - `REACT_APP_SPOTIFY_CLIENT_ID` - Your Spotify Client ID
-   - `REACT_APP_REDIRECT_URI` - `https://sesh-karaoke.vercel.app/callback`
-
-The project includes a `vercel.json` configuration file to ensure proper routing and serverless function setup.
-
-## Troubleshooting
-
-If you see a black screen or are having other issues:
-
-1. Run the diagnostic script:
-   ```
-   # Windows
-   diagnose.bat
-   
-   # Mac/Linux
-   node check-build.js
-   ```
-
-2. Make sure both services are running when developing locally:
-   - Frontend on port 3000
-   - API server on port 3001
-
-3. Check if ports are already in use by other applications:
-   ```
-   npx kill-port 3000 3001
-   ```
-
-4. Try clearing your browser cache and local storage
-
-5. Check your browser console for JavaScript errors
-
-## Technologies Used
-
-- React with TypeScript
-- Spotify Web API
-- Express.js for the backend
-- Vercel Serverless Functions for API endpoints
+`.vercelignore` excludes local credentials, lyric caches, evidence, generated reports and planning state from upload. Parser helpers live in `lib/` so Vercel only treats actual HTTP handlers in `api/` as functions. Publishing and deploying do not rotate keys, provision shared cloud JSON storage, or verify the owner's Spotify consent/playback.

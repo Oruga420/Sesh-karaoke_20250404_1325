@@ -1,366 +1,57 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { LyricsResult, SyncedLine } from '../services/lyricsService';
+import { clampProgress } from '../services/playbackPolling';
 import './Lyrics.css';
 
 interface LyricsProps {
-  syncedLyrics: any[];
-  currentLine: number;
-  currentWord: number;
-  progress: number; // Progress in milliseconds
-  duration: number; // Total duration in milliseconds
-  paused: boolean; // Whether playback is paused
+  result: LyricsResult;
+  progress: number;
+  duration: number;
+  paused: boolean;
 }
 
-function Lyrics({ syncedLyrics, currentLine, currentWord, progress, duration, paused }: LyricsProps) {
-  const lyricsRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const highlightedRef = useRef<HTMLSpanElement>(null);
-  const [syncEnabled, setSyncEnabled] = useState(true);
-  
-  // Log the incoming lyrics data for debugging and validate content
-  useEffect(() => {
-    console.log('Lyrics component received:', {
-      linesCount: syncedLyrics?.length || 0,
-      currentLine,
-      currentWord,
-      progress,
-      sample: syncedLyrics?.length > 0 ? 
-        syncedLyrics[0].map((w: any) => w.word || w).join(' ') : 'No lyrics'
-    });
-    
-    // Validate that syncedLyrics doesn't contain unintended intro messages
-    // But don't filter the "Now playing" messages anymore - we want to keep them
-    // as they serve as fallback lyrics when no synced lyrics are found
-    if (syncedLyrics?.length > 0) {
-      const firstLine = syncedLyrics[0];
-      if (firstLine?.length > 0) {
-        const firstWord = firstLine[0]?.word;
-        if (firstWord && typeof firstWord === 'string' && 
-            firstWord.includes('Welcome')) {
-          console.warn('Detected intro message in lyrics, this should be removed');
-        }
-      }
-    }
-  }, [syncedLyrics, currentLine, currentWord, progress]);
-  
-  // Calculate the current lyrics state based on progress
-  const lyricsState = useMemo(() => {
-    // If there are no lyrics or sync is disabled or playback is paused, show all lyrics
-    if (!syncedLyrics || syncedLyrics.length === 0 || !syncEnabled || paused) {
-      return {
-        before: '',
-        highlighted: '',
-        after: syncedLyrics ? syncedLyrics.map(line => 
-          line.map((w: any) => w.word || w).join(' ')
-        ).join('\n') : ''
-      };
-    }
-    
-    // Progress in seconds
-    const progressSeconds = progress / 1000;
-    
-    // Find lines that have passed and current line based on timestamp
-    const passedLinesWithCurrent = syncedLyrics
-      .map((line, index) => ({ line, index }))
-      .filter(({ line }) => {
-        // Get the timestamp of the line (first word's timestamp)
-        const timestamp = line[0]?.timestamp || 0;
-        return timestamp <= progressSeconds;
-      });
-    
-    // Lines that have fully passed (all except current)
-    const passedLines = passedLinesWithCurrent.slice(0, -1);
-    
-    // Current line being sung
-    const currentLyrics = passedLinesWithCurrent.length > 0
-      ? passedLinesWithCurrent[passedLinesWithCurrent.length - 1]
-      : null;
-    
-    // Upcoming lines
-    const upcomingLines = syncedLyrics
-      .map((line, index) => ({ line, index }))
-      .filter(({ line }) => {
-        const timestamp = line[0]?.timestamp || 0;
-        return timestamp > progressSeconds;
-      });
-    
-    // Format lines for display
-    const before = passedLines.map(({ line }) => 
-      line.map((w: any) => w.word || w).join(' ')
-    ).join('\n');
-    
-    const highlighted = currentLyrics 
-      ? currentLyrics.line.map((w: any) => w.word || w).join(' ')
-      : '';
-    
-    const after = upcomingLines.map(({ line }) => 
-      line.map((w: any) => w.word || w).join(' ')
-    ).join('\n');
-    
-    return { before, highlighted, after };
-  }, [syncedLyrics, progress, syncEnabled, paused]);
-  
-  // Effect to scroll to the highlighted line with debounce to prevent jumpy behavior
-  useEffect(() => {
-    if (syncEnabled && highlightedRef.current) {
-      // Debounce the scroll to prevent jumpiness
-      const timeoutId = setTimeout(() => {
-        if (highlightedRef.current) {
-          highlightedRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
-      }, 100); // Small delay to batch scroll operations
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [lyricsState.highlighted, syncEnabled, currentLine]);
-  
-  // Alternative effect to scroll to the active line (when viewing all lyrics)
-  // with debouncing to prevent jumpy behavior
-  useEffect(() => {
-    if (!syncEnabled && lyricsRef.current && syncedLyrics?.length > 0) {
-      const scrollToLine = () => {
-        if (!lyricsRef.current) return;
-        
-        // Get all line elements
-        const lineElements = lyricsRef.current.querySelectorAll('.lyrics__line');
-        
-        // If we have line elements and the current line is valid
-        if (lineElements.length > 0 && currentLine < lineElements.length) {
-          // Get the current line element
-          const currentLineElement = lineElements[currentLine] as HTMLElement;
-          
-          // Smooth scroll to the current line
-          setTimeout(() => {
-            if (currentLineElement) {
-              currentLineElement.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-              });
-            }
-          }, 150);
-        }
-      };
-      
-      // Debounce the scroll operation
-      const timeoutId = setTimeout(scrollToLine, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [currentLine, syncedLyrics, syncEnabled]);
-  
-  // Effect for tracking mouse movement for dynamic background
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      
-      container.style.setProperty('--mouse-x', `${x}%`);
-      container.style.setProperty('--mouse-y', `${y}%`);
-    };
-    
-    container.addEventListener('mousemove', handleMouseMove);
-    
-    return () => {
-      container.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-  
-  // Toggle sync mode
-  const toggleSyncEnabled = () => setSyncEnabled(prev => !prev);
-  
-  // Empty state - improved with more information and debugging
-  if (!syncedLyrics || syncedLyrics.length === 0) {
-    console.log('Lyrics component showing empty state - no lyrics available');
-    
-    // Create default lyrics when none are available
-    // This is better than showing an empty state
-    const defaultLyrics = [
-      [{ word: "Loading", timestamp: 0 }, { word: "lyrics...", timestamp: 0 }],
-      [{ word: "If", timestamp: 3 }, { word: "nothing", timestamp: 3 }, { word: "appears,", timestamp: 3 }],
-      [{ word: "please", timestamp: 6 }, { word: "restart", timestamp: 6 }, { word: "the", timestamp: 6 }, { word: "app", timestamp: 6 }],
-      [{ word: "Enjoy", timestamp: 9 }, { word: "the", timestamp: 9 }, { word: "music!", timestamp: 9 }]
-    ];
-    
-    // Use the default lyrics instead of showing empty state
-    return (
-      <div className="lyrics lyrics--dynamic" ref={containerRef}>
-        <div className="lyrics__fade lyrics__fade--top"></div>
-        
-        <div className="lyrics__container" ref={lyricsRef}>
-          {defaultLyrics.map((line, lineIndex) => (
-            <div
-              key={`line-${lineIndex}`}
-              className={`
-                lyrics__line
-                ${lineIndex === 0 ? 'lyrics__line--active' : ''}
-              `}
-            >
-              {line.map((word: any, wordIndex: number) => (
-                <React.Fragment key={`word-${lineIndex}-${wordIndex}`}>
-                  <span className="lyrics__word">{word.word}</span>
-                  <span className="lyrics__word-space">{' '}</span>
-                </React.Fragment>
-              ))}
-            </div>
-          ))}
-        </div>
-        
-        <div className="lyrics__fade lyrics__fade--bottom"></div>
-      </div>
-    );
+export function activeLineIndex(lines: SyncedLine[], progressMs: number): number {
+  let low = 0;
+  let high = lines.length - 1;
+  let active = -1;
+  const seconds = (Number.isFinite(progressMs) ? progressMs : 0) / 1000;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (lines[mid].time <= seconds) { active = mid; low = mid + 1; } else { high = mid - 1; }
   }
+  return active;
+}
 
-  // When sync mode is enabled, use the three-part display (before, highlighted, after)
-  if (syncEnabled) {
-    return (
-      <div className="lyrics lyrics--dynamic" ref={containerRef}>
-        <div className="lyrics__fade lyrics__fade--top"></div>
-        
-        <div className="lyrics__sync-toggle" onClick={toggleSyncEnabled}>
-          <span className="lyrics__sync-icon">🔄</span>
-        </div>
-        
-        <div className="lyrics__container" ref={lyricsRef}>
-          {/* Past lyrics */}
-          <div className="lyrics__passed-section">
-            {lyricsState.before}
-          </div>
-          
-          {/* Current line */}
-          {lyricsState.highlighted && (
-            <div className="lyrics__highlighted-wrapper">
-              <span className="lyrics__highlighted" ref={highlightedRef}>
-                {lyricsState.highlighted}
-              </span>
-            </div>
-          )}
-          
-          {/* Upcoming lyrics */}
-          <div className="lyrics__upcoming-section">
-            {lyricsState.after}
-          </div>
-        </div>
-        
-        <div className="lyrics__fade lyrics__fade--bottom"></div>
-        
-        <div className="lyrics__progress">
-          <div className="lyrics__progress-text">
-            {Math.floor(progress / 60000)}:{String(Math.floor((progress / 1000) % 60)).padStart(2, '0')} / 
-            {Math.floor(duration / 60000)}:{String(Math.floor((duration / 1000) % 60)).padStart(2, '0')}
-          </div>
-          <div className="lyrics__progress-bar">
-            <div 
-              className="lyrics__progress-fill"
-              style={{width: `${(progress / duration) * 100}%`}}
-            ></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
-  // When sync mode is disabled, show the traditional line-by-line view with word highlighting
+function Lyrics({ result, progress, duration, paused }: LyricsProps) {
+  const active = result.timing === 'line' ? activeLineIndex(result.synced, progress) : -1;
+  const activeElement = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!paused) activeElement.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [active, paused]);
+  const clamped = clampProgress(progress, duration);
   return (
-    <div className="lyrics lyrics--dynamic" ref={containerRef}>
-      <div className="lyrics__fade lyrics__fade--top"></div>
-      
-      <div className="lyrics__sync-toggle" onClick={toggleSyncEnabled}>
-        <span className="lyrics__sync-icon">📝</span>
-      </div>
-      
-      <div className="lyrics__container" ref={lyricsRef}>
-        {syncedLyrics.map((line, lineIndex) => (
-          <div
-            key={`line-${lineIndex}`}
-            className={`
-              lyrics__line
-              ${lineIndex === currentLine ? 'lyrics__line--active' : ''}
-              ${lineIndex < currentLine ? 'lyrics__line--passed' : ''}
-              ${lineIndex > currentLine ? 'lyrics__line--upcoming' : ''}
-            `}
-            style={{
-              opacity: lineIndex === currentLine ? 1 : 
-                       lineIndex === currentLine - 1 || lineIndex === currentLine + 1 ? 0.8 :
-                       lineIndex === currentLine - 2 || lineIndex === currentLine + 2 ? 0.6 : 0.3,
-              transform: lineIndex === currentLine ? 'scale(1.05)' : 
-                         lineIndex === currentLine - 1 || lineIndex === currentLine + 1 ? 'scale(0.95)' : 'none',
-              // Removed blur filter and Z transformations that were causing flicker
-            }}
-          >
-            {line.map((word: any, wordIndex: number) => {
-              // Enhanced word format handling with better LRC support
-              let wordText = '';
-              
-              if (typeof word === 'string') {
-                wordText = word.trim();
-              } else if (word && typeof word === 'object') {
-                // Try to find the word property
-                if ('word' in word && typeof word.word === 'string') {
-                  wordText = word.word.trim();
-                } else {
-                  // Try common variants that might occur due to API response format
-                  const possibleWordProps = ['text', 'content', 'value'];
-                  for (const prop of possibleWordProps) {
-                    if (prop in word && typeof word[prop] === 'string') {
-                      wordText = word[prop].trim();
-                      break;
-                    }
-                  }
-                  
-                  // Last resort - convert entire object to string if nothing works
-                  if (!wordText && Object.keys(word).length > 0) {
-                    wordText = JSON.stringify(word).trim();
-                    console.warn(`Couldn't extract word text properly`, word);
-                  }
-                }
-              }
-              
-              // Skip rendering empty words
-              if (!wordText) {
-                console.warn(`Empty word at line ${lineIndex}, word ${wordIndex}`, word);
-                return null;
-              }
-              
-              return (
-                <React.Fragment key={`word-${lineIndex}-${wordIndex}`}>
-                  <span
-                    className={`
-                      lyrics__word
-                      ${lineIndex === currentLine ? 'lyrics__word--current' : ''}
-                      ${lineIndex < currentLine ? 'lyrics__word--line-passed' : ''}
-                    `}
-                  >
-                    {wordText}
-                  </span>
-                  {/* Add a clear space after each word */}
-                  <span className="lyrics__word-space">{' '}</span>
-                </React.Fragment>
-              );
-            })}
+    <div className={`lyrics ${result.timing === 'line' ? 'lyrics--dynamic' : 'lyrics--plain'}`} aria-label="Lyrics">
+      <div className="lyrics__container">
+        {result.timing === 'line' ? result.synced.map((line, index) => (
+          <div key={`${line.time}-${index}`} ref={index === active ? activeElement : undefined}
+            className={`lyrics__line${index === active ? ' lyrics__line--active' : index < active ? ' lyrics__line--passed' : ''}`}
+            aria-current={index === active ? 'true' : undefined} data-line-time={line.time}>
+            {line.words.join(' ')}
           </div>
-        ))}
+        )) : <div className="lyrics__plain" data-testid="plain-lyrics">{result.text}</div>}
       </div>
-      
-      <div className="lyrics__fade lyrics__fade--bottom"></div>
-      
-      <div className="lyrics__progress">
-        <div className="lyrics__progress-text">
-          Line {currentLine + 1} of {syncedLyrics.length}
+      {duration > 0 && <div className="lyrics__progress">
+        <div className="lyrics__progress-text">{formatTime(clamped)} / {formatTime(duration)} · {paused ? 'Paused' : 'Playing'}</div>
+        <div className="lyrics__progress-bar" role="progressbar" aria-label="Song progress" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={clamped}>
+          <div className="lyrics__progress-fill" style={{ width: `${clamped / duration * 100}%` }} />
         </div>
-        <div className="lyrics__progress-bar">
-          <div 
-            className="lyrics__progress-fill"
-            style={{width: `${(currentLine / (syncedLyrics.length - 1)) * 100}%`}}
-          ></div>
-        </div>
-      </div>
+      </div>}
     </div>
   );
 }
 
+export function formatTime(ms: number): string {
+  const seconds = Math.floor(Math.max(0, Number.isFinite(ms) ? ms : 0) / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 export default Lyrics;

@@ -33,6 +33,11 @@
   left: 0;
 }
 
+.visualizer__bars { display: flex; align-items: flex-end; gap: 4px; height: 100%; padding: 12px; }
+.visualizer__bars span { flex: 1; background: linear-gradient(#7df0a5, #1db954); opacity: .5; border-radius: 2px 2px 0 0; transform-origin: bottom; }
+.visualizer--playing .visualizer__bars span { opacity: .85; animation: decorative-bars 1s ease-in-out infinite alternate; }
+@keyframes decorative-bars { from { transform: scaleY(.4); } to { transform: scaleY(1); } }
+
 /* Standalone Playback Status */
 .playback-status {
   display: flex;

@@ -10,11 +10,12 @@
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/health", "destination": "/api/health.js" },
-    { "source": "/debug", "destination": "/api/debug.js" },
-    { "source": "/refresh-token", "destination": "/api/refresh-token.js" },
-    { "source": "/fixed-lyrics", "destination": "/api/fixed-lyrics.js" },
-    { "source": "/lyrics", "destination": "/api/fixed-lyrics.js" },
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/debug", "destination": "/api/debug" },
+    { "source": "/refresh-token", "destination": "/api/refresh-token" },
+    { "source": "/fixed-lyrics", "destination": "/api/lyrics" },
+    { "source": "/direct-lyrics", "destination": "/api/lyrics" },
+    { "source": "/lyrics", "destination": "/api/lyrics" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

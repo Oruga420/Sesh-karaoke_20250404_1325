@@ -1,263 +1,250 @@
-import axios from 'axios';
+export interface Recording {
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+  trackId?: string;
+}
 
-// Dynamically determine the API URL
-const API_URL = process.env.REACT_APP_API_URL || 
-                (window.location.hostname === 'localhost' 
-                  ? 'http://localhost:3001' 
-                  : window.location.origin);
+export interface SyncedLine { time: number; words: string[] }
 
-export interface SyncedLyrics {
+export interface LyricsResult {
+  status: 'found' | 'instrumental' | 'not_found' | 'unavailable';
+  timing: 'line' | 'none';
   text: string;
-  synced: {
-    time: number;
-    words: string[];
-  }[];
+  synced: SyncedLine[];
+  source: string | null;
+  sourceUrl: string | null;
+  songInfo: Recording | null;
+  requested: Recording;
+  confidence: 'exact' | 'matched' | 'title-artist' | 'none';
+  fetchedAt: string;
+  cache: { hit: boolean; storage: 'memory' | 'disk' | 'none'; persisted: boolean };
+  retryAfter?: number;
 }
 
-export const fetchLyrics = async (title: string, artist: string): Promise<SyncedLyrics> => {
-  try {
-    console.log(`=== LYRICS DEBUG INFO ===`);
-    console.log(`API URL: ${API_URL}`);
-    console.log(`Window Location: ${window.location.href}`);
-    console.log(`Fetching lyrics for "${title}" by "${artist}" from ${API_URL}/api/lyrics`);
-    
-    // Always use offline lyrics in demo mode
-    if (title === 'Demo Song' && artist === 'Demo Artist') {
-      console.log('Using demo lyrics for demo song');
-      return createOfflineDemoLyrics();
-    }
-    
-    try {
-      // Construct the full API URL - adjust path for Vercel deployment
-      let apiEndpoint;
-      if (window.location.hostname.includes('vercel.app')) {
-        // For Vercel deployments, use /lyrics directly per the rewrite rules
-        // Add direct=true to use direct lyrics as a fallback
-        apiEndpoint = `${window.location.origin}/lyrics?direct=true`;
-      } else {
-        // For local development, use the original path
-        apiEndpoint = `${API_URL}/api/lyrics`;
-      }
-      console.log(`Making API request to: ${apiEndpoint}`);
-      
-      // Use a simple, hardcoded lyrics endpoint that's guaranteed to work
-      const lyricsEndpoint = `${window.location.origin}/fixed-lyrics`;
-      console.log(`Using fixed lyrics endpoint: ${lyricsEndpoint}`);
-      const response = await axios.get(lyricsEndpoint, {
-        params: { title, artist },
-        timeout: 10000, // Increased timeout to 10 seconds
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      console.log(`Got response from API: ${response.status} ${response.statusText}`);
-      console.log('Response data:', response.data);
-      
-      if (response.data && response.data.lyrics) {
-        const lyricData = response.data.lyrics;
-        console.log(`Successfully fetched lyrics with ${lyricData.synced?.length || 0} synced lines`);
-        console.log(`Lyrics source: ${lyricData.source || 'unknown'}`);
-        
-        // For real songs (not demo), try Happi.dev first
-        if (title !== 'Demo Song' && artist !== 'Demo Artist') {
-          // Try using Happi.dev direct API as a backup
-          try {
-            const happiLyrics = await tryHappiDirectly(title, artist);
-            if (happiLyrics) {
-              console.log('Successfully fetched lyrics directly from Happi.dev');
-              return happiLyrics;
-            }
-          } catch (happiError) {
-            console.log('Could not fetch from Happi directly:', happiError);
-          }
-        }
-        
-        return lyricData;
-      } else {
-        // If response doesn't have expected structure
-        console.error('Invalid lyrics response format:', response.data);
-        
-        // Return fallback lyrics
-        return createFallbackLyrics(title, artist);
-      }
-    } catch (networkError) {
-      console.error('Network error fetching lyrics:', networkError);
-      console.log('Using offline mode with fallback lyrics');
-      
-      // Use static lyrics for certain popular songs if we're offline
-      if (title.toLowerCase().includes('blinding lights') || 
-          artist.toLowerCase().includes('weeknd')) {
-        return createStaticLyrics('The Weeknd', 'Blinding Lights');
-      }
-      
-      // Return fallback lyrics for any other track
-      return createFallbackLyrics(title, artist);
-    }
-  } catch (error) {
-    console.error('Error in lyrics service:', error);
-    
-    // Return fallback lyrics on any error
-    return createFallbackLyrics(title, artist);
-  }
-};
+export interface LyricsLookup { lyrics: LyricsResult; savedOnDevice: boolean; fromDevice: boolean; imported?: boolean }
 
-// Try fetching lyrics directly from Happi.dev as a backup
-async function tryHappiDirectly(title: string, artist: string): Promise<SyncedLyrics | null> {
-  try {
-    // This is just a fallback mechanism if your backend API fails
-    console.log('Trying to fetch lyrics directly from Happi.dev');
-    
-    // Note: In production, you should never expose your API key in frontend code
-    // This is just a temporary solution for debugging
-    const response = await axios.get('https://api.happi.dev/v1/music/search', {
-      params: {
-        q: `${artist} ${title}`,
-        limit: 1,
-        apikey: '7Qd8TXUUNdaNAQXjJx6ZzLs9kOGvUzYi6XJMM1dKxo2P6nE2QBhKqZXf' // public test key, restricted usage
-      }
-    });
-    
-    if (response.data && response.data.success && response.data.result && response.data.result.length > 0) {
-      const trackInfo = response.data.result[0];
-      console.log('Found track:', trackInfo.track, 'by', trackInfo.artist);
-      
-      // Return simple lyrics format
-      return {
-        text: `${trackInfo.track}\nBy ${trackInfo.artist}\n\nLyrics found from Happi.dev API\nThis is a fallback mode\nPlease check your server configuration`,
-        synced: [
-          { time: 0, words: [trackInfo.track] },
-          { time: 3, words: ["By", trackInfo.artist] },
-          { time: 6, words: ["Lyrics", "found", "from", "Happi.dev", "API"] },
-          { time: 9, words: ["This", "is", "a", "fallback", "mode"] },
-          { time: 12, words: ["Please", "check", "your", "server", "configuration"] }
-        ]
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error fetching directly from Happi:', error);
-    return null;
+export const DEVICE_CACHE_KEY = 'oruga-karaoke.lyrics.v1';
+export const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const CACHE_MAX_ENTRIES = 30;
+export const MAX_JSON_BYTES = 1024 * 1024;
+const MAX_TEXT_LENGTH = 120000;
+interface CacheEntry { savedAt: number; lyrics: LyricsResult; imported?: boolean }
+interface DeviceCache { version: 1; entries: CacheEntry[] }
+
+export class LyricsRequestError extends Error {
+  constructor(message: string, public status = 0, public offline = false, public retryAfter = 0) {
+    super(message);
+    this.name = 'LyricsRequestError';
   }
 }
 
-// Create fallback lyrics when API fails
-const createFallbackLyrics = (title: string, artist: string): SyncedLyrics => {
-  console.log(`Creating fallback lyrics for "${title}" by "${artist}"`);
-  
-  const cleanTitle = title.replace(/\(.*?\)/g, '').trim();
-  const linesOfLyrics = [
-    `Now playing: ${cleanTitle}`,
-    `By: ${artist}`,
-    ``,
-    `Lyrics are not available right now`,
-    `But the music plays on`,
-    ``,
-    `Enjoy the melody and rhythm`,
-    `Let the sound move you`,
-    `Music connects us all`
-  ];
+function object(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+function shortString(value: unknown, limit = 1000): value is string {
+  return typeof value === 'string' && value.length <= limit;
+}
+function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127);
+}
+function recording(value: unknown): value is Recording {
+  return object(value) && shortString(value.title) && value.title.trim().length > 0 &&
+    shortString(value.artist) && value.artist.trim().length > 0 && shortString(value.album) &&
+    [value.title, value.artist, value.album].every(field => field.length <= 500 && !hasControlCharacters(field)) &&
+    normalize(value.title).length > 0 && normalize(value.artist).length > 0 &&
+    typeof value.duration === 'number' && Number.isFinite(value.duration) && value.duration >= 0 &&
+    value.duration <= 3600000 && (value.trackId === undefined || (shortString(value.trackId, 200) && !hasControlCharacters(value.trackId)));
+}
 
-  // Create synced lyrics structure
-  const synced = linesOfLyrics.map((line, index) => {
-    return {
-      time: index * 3, // 3 seconds per line
-      words: line ? line.split(' ') : []
-    };
-  });
+function normalize(value: string): string {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(new RegExp('[^\\p{L}\\p{N}]+', 'gu'), ' ').trim().replace(/\s+/g, ' ');
+}
+function versionSensitive(value: Recording): boolean {
+  return /\b(live|remix|remaster\w*|acoustic|unplugged|edit|version|instrumental|karaoke|demo|mono|stereo|mix|session|sped|slowed|reverb|rerecord\w*)\b|\ben vivo\b/i
+    .test(normalize(value.title + ' ' + value.album));
+}
 
-  return {
-    text: linesOfLyrics.join('\n'),
-    synced: synced
-  };
-};
+export function safeSourceUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port ? url.href : null;
+  } catch { return null; }
+}
 
-// Create special demo lyrics for offline testing
-const createOfflineDemoLyrics = (): SyncedLyrics => {
-  console.log('Creating demo lyrics for offline mode');
-  
-  const linesOfLyrics = [
-    `This is a demo song`,
-    `For offline testing mode`,
-    ``,
-    `No internet connection needed`,
-    `Just enjoy the karaoke experience`,
-    ``,
-    `The lyrics will highlight`,
-    `As the demo track plays along`,
-    `Perfect for testing without Spotify`,
-    ``,
-    `Each line is synchronized`,
-    `With the demo playback`,
-    `Creating a complete karaoke experience`
-  ];
-
-  // Create synced lyrics structure with timestamps
-  const synced = linesOfLyrics.map((line, index) => {
-    return {
-      time: 25 + (index * 4), // Start at 25 seconds, 4 seconds per line
-      words: line ? line.split(' ') : []
-    };
-  });
-
-  return {
-    text: linesOfLyrics.join('\n'),
-    synced: synced
-  };
-};
-
-// Create static lyrics for popular songs when offline
-const createStaticLyrics = (artist: string, title: string): SyncedLyrics => {
-  console.log(`Creating static lyrics for ${title} by ${artist}`);
-  
-  // The Weeknd - Blinding Lights (partial lyrics with sync)
-  if (title.toLowerCase().includes('blinding lights') || 
-      artist.toLowerCase().includes('weeknd')) {
-    const text = "Yeah\nI've been tryna call\nI've been on my own for long enough\nMaybe you can show me how to love, maybe\nI'm going through withdrawals\nYou don't even have to do too much\nYou can turn me on with just a touch, baby\nI look around and\nSin City's cold and empty (oh)\nNo one's around to judge me (oh)\nI can't see clearly when you're gone\nI said, ooh, I'm blinded by the lights\nNo, I can't sleep until I feel your touch\nI said, ooh, I'm drowning in the night\nOh, when I'm like this, you're the one I trust";
-    
-    const synced = [
-      { time: 13.4, words: ["Yeah"] },
-      { time: 27.0, words: ["I've", "been", "tryna", "call"] },
-      { time: 29.8, words: ["I've", "been", "on", "my", "own", "for", "long", "enough"] },
-      { time: 32.6, words: ["Maybe", "you", "can", "show", "me", "how", "to", "love,", "maybe"] },
-      { time: 38.2, words: ["I'm", "going", "through", "withdrawals"] },
-      { time: 41.1, words: ["You", "don't", "even", "have", "to", "do", "too", "much"] },
-      { time: 43.9, words: ["You", "can", "turn", "me", "on", "with", "just", "a", "touch,", "baby"] },
-      { time: 49.4, words: ["I", "look", "around", "and"] },
-      { time: 50.7, words: ["Sin", "City's", "cold", "and", "empty", "(oh)"] },
-      { time: 53.5, words: ["No", "one's", "around", "to", "judge", "me", "(oh)"] },
-      { time: 56.3, words: ["I", "can't", "see", "clearly", "when", "you're", "gone"] },
-      { time: 60.8, words: ["I", "said,", "ooh,", "I'm", "blinded", "by", "the", "lights"] },
-      { time: 66.6, words: ["No,", "I", "can't", "sleep", "until", "I", "feel", "your", "touch"] },
-      { time: 71.8, words: ["I", "said,", "ooh,", "I'm", "drowning", "in", "the", "night"] },
-      { time: 77.9, words: ["Oh,", "when", "I'm", "like", "this,", "you're", "the", "one", "I", "trust"] }
-    ];
-    
-    return { text, synced };
+export function validateLyrics(value: unknown): LyricsResult | null {
+  if (!object(value) || !['found', 'instrumental', 'not_found', 'unavailable'].includes(String(value.status)) ||
+    !['line', 'none'].includes(String(value.timing)) || !shortString(value.text, MAX_TEXT_LENGTH) ||
+    !Array.isArray(value.synced) || value.synced.length > 4000 || !recording(value.requested) ||
+    !(value.songInfo === null || recording(value.songInfo)) ||
+    !(value.source === null || shortString(value.source, 200)) ||
+    !(value.sourceUrl === null || shortString(value.sourceUrl, 4000)) ||
+    !['exact', 'matched', 'title-artist', 'none'].includes(String(value.confidence)) ||
+    !shortString(value.fetchedAt, 64) || !Number.isFinite(Date.parse(value.fetchedAt)) ||
+    !object(value.cache) || typeof value.cache.hit !== 'boolean' || typeof value.cache.persisted !== 'boolean' ||
+    !['memory', 'disk', 'none'].includes(String(value.cache.storage))) return null;
+  let previous = -1;
+  for (const line of value.synced) {
+    if (!object(line) || typeof line.time !== 'number' || !Number.isFinite(line.time) || line.time < 0 ||
+      line.time < previous || line.time > 24 * 60 * 60 || !Array.isArray(line.words) ||
+      line.words.length === 0 || line.words.length > 1000 || !line.words.every(word => shortString(word, 2000) && word.trim())) return null;
+    previous = line.time;
   }
-  
-  // Default to regular fallback if no match
-  return createFallbackLyrics(title, artist);
-};
-
-// Function to convert synced lyrics to a display format
-export const formatSyncedLyrics = (synced: SyncedLyrics): any[] => {
-  if (!synced || !synced.synced || !Array.isArray(synced.synced)) {
-    console.error('Invalid synced lyrics format:', synced);
-    return [];
+  if (value.retryAfter !== undefined && (typeof value.retryAfter !== 'number' ||
+    !Number.isFinite(value.retryAfter) || value.retryAfter < 0 || value.retryAfter > 86400)) return null;
+  if (value.timing === 'none' && value.synced.length !== 0) return null;
+  if (value.status === 'found') {
+    if (!value.songInfo || !value.source || value.confidence === 'none' ||
+      (!value.text.trim() && value.synced.length === 0) ||
+      (value.timing === 'line' && value.synced.length === 0)) return null;
+  } else if (value.text !== '' || value.synced.length !== 0 || value.timing !== 'none') return null;
+  if ((value.status === 'not_found' || value.status === 'unavailable') &&
+    (value.songInfo !== null || value.source !== null || value.sourceUrl !== null || value.confidence !== 'none')) return null;
+  if (value.status === 'found' || value.status === 'instrumental') {
+    const info = value.songInfo;
+    const requested = value.requested;
+    const sourceUrl = safeSourceUrl(value.sourceUrl as string | null);
+    if (!info || !sourceUrl || normalize(info.title) !== normalize(requested.title) ||
+      normalize(info.artist) !== normalize(requested.artist)) return null;
+    const host = new URL(sourceUrl).hostname;
+    if (value.source === 'lrclib.net') {
+      if (host !== 'lrclib.net' || !['exact', 'matched'].includes(String(value.confidence)) ||
+        (versionSensitive(info) && !versionSensitive(requested)) ||
+        (requested.album && normalize(info.album) !== normalize(requested.album)) ||
+        (requested.duration && (info.duration <= 0 || Math.abs(info.duration - requested.duration) > 2000))) return null;
+    } else if (value.source !== 'lyrics.ovh' || host !== 'api.lyrics.ovh' || value.confidence !== 'title-artist' ||
+      value.timing !== 'none' || value.status !== 'found' || versionSensitive(requested)) return null;
   }
-  
-  return synced.synced.map(line => {
-    if (!line || !Array.isArray(line.words)) {
-      console.error('Invalid line format:', line);
-      return [];
+  if (byteLength(JSON.stringify(value)) > 512 * 1024) return null;
+  const typed = value as unknown as LyricsResult;
+  const copyRecording = (item: Recording): Recording => ({ title: item.title, artist: item.artist,
+    album: item.album, duration: item.duration, ...(item.trackId ? { trackId: item.trackId } : {}) });
+  return {
+    status: typed.status, timing: typed.timing, text: typed.text,
+    synced: typed.synced.map(line => ({ time: line.time, words: [...line.words] })),
+    source: typed.source, sourceUrl: safeSourceUrl(typed.sourceUrl),
+    requested: copyRecording(typed.requested), songInfo: typed.songInfo ? copyRecording(typed.songInfo) : null,
+    confidence: typed.confidence, fetchedAt: typed.fetchedAt,
+    cache: { hit: typed.cache.hit, storage: typed.cache.storage, persisted: typed.cache.persisted },
+    ...(typed.retryAfter !== undefined ? { retryAfter: typed.retryAfter } : {}),
+  };
+}
+
+export function recordingKey(value: Recording): string {
+  return JSON.stringify([normalize(value.title), normalize(value.artist), normalize(value.album), value.duration, value.trackId || '']);
+}
+function byteLength(value: string): number { return new Blob([value]).size; }
+function removeCorruptCache(): void {
+  try { localStorage.removeItem(DEVICE_CACHE_KEY); } catch { /* Storage may be disabled. */ }
+}
+function readCache(now = Date.now()): DeviceCache {
+  try {
+    const raw = localStorage.getItem(DEVICE_CACHE_KEY);
+    if (!raw) return { version: 1, entries: [] };
+    if (byteLength(raw) > MAX_JSON_BYTES) throw new Error('Cache too large');
+    const parsed: unknown = JSON.parse(raw);
+    if (!object(parsed) || parsed.version !== 1 || !Array.isArray(parsed.entries) ||
+      parsed.entries.length > CACHE_MAX_ENTRIES) throw new Error('Invalid cache');
+    const keys = new Set<string>();
+    const entries: CacheEntry[] = [];
+    for (const entry of parsed.entries) {
+      if (!object(entry) || typeof entry.savedAt !== 'number' || !Number.isFinite(entry.savedAt)) continue;
+      const lyrics = validateLyrics(entry.lyrics);
+      if (!lyrics || !['found', 'instrumental'].includes(lyrics.status) || entry.savedAt > now + 60000 ||
+        now - entry.savedAt > CACHE_TTL_MS || Date.parse(lyrics.fetchedAt) > now + 60000 ||
+        now - Date.parse(lyrics.fetchedAt) > CACHE_TTL_MS) continue;
+      const key = recordingKey(lyrics.requested);
+      if (!keys.has(key)) { entries.push({ savedAt: entry.savedAt, lyrics, imported: entry.imported === true }); keys.add(key); }
     }
-    
-    return line.words.map(word => ({
-      word,
-      timestamp: line.time
-    }));
-  });
-};
+    return { version: 1, entries: entries.sort((a, b) => b.savedAt - a.savedAt) };
+  } catch { removeCorruptCache(); return { version: 1, entries: [] }; }
+}
+
+export function getSavedLyrics(requested: Recording): LyricsLookup | null {
+  const entry = readCache().entries.find(item => recordingKey(item.lyrics.requested) === recordingKey(requested));
+  return entry ? { lyrics: entry.lyrics, savedOnDevice: true, fromDevice: true, imported: entry.imported } : null;
+}
+export function getLastSavedLyrics(): LyricsLookup | null {
+  const entry = readCache().entries[0];
+  return entry ? { lyrics: entry.lyrics, savedOnDevice: true, fromDevice: true, imported: entry.imported } : null;
+}
+export function saveLyricsOnDevice(result: LyricsResult, imported = false): boolean {
+  const lyrics = validateLyrics(result);
+  if (!lyrics || !['found', 'instrumental'].includes(lyrics.status) ||
+    Date.now() - Date.parse(lyrics.fetchedAt) > CACHE_TTL_MS || Date.parse(lyrics.fetchedAt) > Date.now() + 60000) return false;
+  const entries = readCache().entries.filter(entry => recordingKey(entry.lyrics.requested) !== recordingKey(lyrics.requested));
+  entries.unshift({ savedAt: Date.now(), lyrics, imported });
+  entries.splice(CACHE_MAX_ENTRIES);
+  try {
+    let json = JSON.stringify({ version: 1, entries });
+    while (byteLength(json) > MAX_JSON_BYTES && entries.length > 1) {
+      entries.pop(); json = JSON.stringify({ version: 1, entries });
+    }
+    if (byteLength(json) > MAX_JSON_BYTES) return false;
+    localStorage.setItem(DEVICE_CACHE_KEY, json);
+    return getSavedLyrics(lyrics.requested) !== null;
+  } catch { return false; }
+}
+
+export function exportLyricsJson(result: LyricsResult): string {
+  const lyrics = validateLyrics(result);
+  if (!lyrics || !['found', 'instrumental'].includes(lyrics.status)) throw new Error('Only retrieved lyrics can be exported.');
+  const json = JSON.stringify({ version: 1, lyrics }, null, 2);
+  if (byteLength(json) > MAX_JSON_BYTES) throw new Error('Lyrics JSON is too large.');
+  return json;
+}
+export function importLyricsJson(json: string): LyricsLookup {
+  if (byteLength(json) > MAX_JSON_BYTES) throw new Error('Lyrics JSON must be smaller than 1 MB.');
+  let parsed: unknown;
+  try { parsed = JSON.parse(json); } catch { throw new Error('Choose a valid lyrics JSON file.'); }
+  const lyrics = object(parsed) && parsed.version === 1 ? validateLyrics(parsed.lyrics) : null;
+  if (!lyrics || !['found', 'instrumental'].includes(lyrics.status)) throw new Error('Unsupported or invalid lyrics JSON.');
+  return { lyrics, savedOnDevice: saveLyricsOnDevice(lyrics, true), fromDevice: false, imported: true };
+}
+
+interface LookupOptions { signal?: AbortSignal; bypassCache?: boolean }
+export async function fetchLyrics(requested: Recording, options: LookupOptions = {}): Promise<LyricsLookup> {
+  if (!recording(requested)) throw new LyricsRequestError('Enter a song title and artist.');
+  if (options.signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+  const cached = getSavedLyrics(requested);
+  const offline = navigator.onLine === false;
+  if (cached && (!options.bypassCache || offline)) return cached;
+  if (offline) throw new LyricsRequestError('You are offline. No saved lyrics for this recording.', 0, true);
+  const params = new URLSearchParams({ title: requested.title, artist: requested.artist });
+  if (requested.album) params.set('album', requested.album);
+  if (requested.duration) params.set('duration', String(requested.duration));
+  if (requested.trackId) params.set('trackId', requested.trackId);
+  const base = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 10000);
+  try {
+    const response = await fetch(`${base}/api/lyrics?${params}`, { signal: controller.signal, headers: { Accept: 'application/json' } });
+    const raw = await response.text();
+    if (options.signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+    if (byteLength(raw) > MAX_JSON_BYTES) throw new LyricsRequestError('Lyrics response is too large.', response.status);
+    let body: unknown;
+    try { body = JSON.parse(raw); } catch { throw new LyricsRequestError('The lyrics service returned an invalid response.', response.status); }
+    const lyrics = object(body) ? validateLyrics(body.lyrics) : null;
+    const expectedStatus = lyrics?.status === 'not_found' ? 404 : lyrics?.status === 'unavailable' ? 503 : 200;
+    if (!lyrics || response.status !== expectedStatus || recordingKey(lyrics.requested) !== recordingKey(requested)) {
+      const headerDelay = Number(response.headers.get('Retry-After'));
+      throw new LyricsRequestError('The lyrics service could not complete this lookup.', response.status, false,
+        Number.isFinite(headerDelay) ? Math.max(0, Math.min(86400, headerDelay)) : 0);
+    }
+    const headerDelay = Number(response.headers.get('Retry-After'));
+    if (Number.isFinite(headerDelay) && headerDelay > 0) lyrics.retryAfter = Math.min(86400, headerDelay);
+    return { lyrics, savedOnDevice: saveLyricsOnDevice(lyrics), fromDevice: false };
+  } catch (error) {
+    if (options.signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+    if (error instanceof LyricsRequestError) throw error;
+    if (cached) return cached;
+    if (timedOut) throw new LyricsRequestError('The lyrics lookup timed out. Please retry.');
+    throw new LyricsRequestError('Could not connect to the lyrics service. Check your connection and retry.', 0, navigator.onLine === false);
+  } finally { clearTimeout(timeout); options.signal?.removeEventListener('abort', abort); }
+}

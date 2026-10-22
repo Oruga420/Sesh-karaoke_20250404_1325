@@ -3,7 +3,7 @@
 export {};
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { parseLrc } = require('../../api/lrcParser');
+const { parseLrc } = require('../../lib/lrcParser');
 
 interface SyncedLine {
   time: number;
@@ -31,6 +31,25 @@ describe('parseLrc', () => {
   });
 
   describe('timestamp parsing', () => {
+    it('expands repeated timestamp tags with one line of words', () => {
+      expect(parseLrc('[00:01.00][00:04.50]Original refrain')).toEqual([
+        { time: 1, words: ['Original', 'refrain'] },
+        { time: 4.5, words: ['Original', 'refrain'] },
+      ]);
+    });
+
+    it('applies the file offset even when declared after lyric lines', () => {
+      expect(parseLrc('[00:01.00]Original\n[offset:-1500]\n[00:03.00]Later')).toEqual([
+        { time: 0, words: ['Original'] },
+        { time: 1.5, words: ['Later'] },
+      ]);
+    });
+
+    it('rejects invalid seconds and malformed repeated tags', () => {
+      expect(parseLrc('[00:60.00]Invalid\n[00:01.00][00:99.00]Invalid too\n[00:02.00]Valid')).toEqual([
+        { time: 2, words: ['Valid'] },
+      ]);
+    });
     it('parses a single line with 2-digit fraction (hundredths)', () => {
       const result: SyncedLine[] = parseLrc('[00:12.34]Hello world');
       expect(result).toHaveLength(1);

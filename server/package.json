@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "redirect": "node redirect-server.js",
-    "start:all": "concurrently \"npm run start\" \"npm run redirect\""
+    "start:all": "node server.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

@@ -1,66 +1,77 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { exchangeCodeForToken } from '../spotify';
+import { clearSpotifyLoginAttempt, exchangeCodeForToken, storeSpotifyToken } from '../spotify';
 import '../App.css';
 
 function Callback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<string>('Procesando autenticación…');
+  // StrictMode replays effects; retain the original parameters even after URL cleanup.
+  const [callback] = useState(() => new URLSearchParams(window.location.search));
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const error = params.get('error');
+    const code = callback.get('code');
+    const error = callback.get('error');
+    let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
+    const cleanUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      ['code', 'state', 'error', 'error_description'].forEach((key) => params.delete(key));
+      const search = params.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`);
+    };
+    const returnHome = (delay: number) => {
+      redirectTimer = setTimeout(() => {
+        if (!cancelled) navigate('/', { replace: true });
+      }, delay);
+    };
+    const cleanup = () => {
+      cancelled = true;
+      clearTimeout(redirectTimer);
+    };
 
     if (error) {
-      console.error('Spotify auth error:', error);
+      clearSpotifyLoginAttempt();
+      cleanUrl();
       setStatus(`Error de Spotify: ${error}`);
-      const t = setTimeout(() => navigate('/', { replace: true }), 2500);
-      return () => clearTimeout(t);
+      returnHome(2500);
+      return cleanup;
     }
 
     if (!code) {
-      console.error('No authorization code in callback URL');
+      clearSpotifyLoginAttempt();
+      cleanUrl();
       setStatus('No se recibió código de autorización.');
-      const t = setTimeout(() => navigate('/', { replace: true }), 2000);
-      return () => clearTimeout(t);
+      returnHome(2000);
+      return cleanup;
     }
 
-    let cancelled = false;
     (async () => {
       try {
         setStatus('Intercambiando código por token…');
         const token = await exchangeCodeForToken(code);
         if (cancelled) return;
 
-        localStorage.setItem('spotify_token', token.access_token);
-        const expiresAt = Date.now() + token.expires_in * 1000;
-        localStorage.setItem('token_expiry', expiresAt.toString());
-        if (token.refresh_token) {
-          localStorage.setItem('spotify_refresh_token', token.refresh_token);
-        }
-
+        storeSpotifyToken(token);
+        cleanUrl();
         setStatus('¡Listo! Redirigiendo…');
         navigate('/', { replace: true });
       } catch (e) {
-        console.error('Token exchange failed:', e);
         if (cancelled) return;
+        cleanUrl();
         setStatus(e instanceof Error ? e.message : 'Falló el intercambio de token');
-        const t = setTimeout(() => navigate('/', { replace: true }), 3000);
-        return () => clearTimeout(t);
+        returnHome(3000);
       }
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
+    return cleanup;
+  }, [callback, navigate]);
 
   return (
     <div className="app">
       <div className="app__container">
         <h2>Procesando Autenticación</h2>
-        <p>{status}</p>
+        <p role="status">{status}</p>
         <div className="loading-spinner"></div>
       </div>
     </div>
